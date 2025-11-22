@@ -45,7 +45,7 @@ python3 run_analysis.py
 **Terminal 3 - Agent:**
 ```bash
 source .venv/bin/activate
-python3 run_agent.py --mode mock --iterations 5
+python3 run_agent.py --agent-id agent-001
 ```
 
 ## ✅ Expected Output
@@ -63,22 +63,20 @@ gRPC Server Started (Bidirectional Streaming)
   Waiting for agent connections...
 ======================================================================
 
-✓ Agent registered: agent-001 on hostname
-✓ Forwarded metrics #1 from agent 'agent-001' to Kafka
-  → Delivered to monitoring-data [partition 0, offset 0]
+✓ Agent connected (streaming): agent-001
+[Metrics Received - Stream]
+  Agent: agent-001
+  CPU: 45.23%
+  Memory: 67.89%
+✓ Forwarded to Kafka topic: monitoring-data
 ```
 
 ### Agent
 ```
-✓ Connected to gRPC server at localhost:50051
-✓ Agent registered: Agent registered successfully
-============================================================
-Monitor Agent Started: agent-001
-============================================================
-  Using bidirectional streaming
-============================================================
+✓ Connected to gRPC server
+✓ Starting bidirectional stream...
 
-[1] Streamed metrics:
+[1] Generating metrics...
   CPU: 45.23%
   Memory: 67.89%
 ```
@@ -97,7 +95,6 @@ Waiting for monitoring data from Kafka...
 📊 MONITORING DATA RECEIVED
 ======================================================================
   Agent ID:   agent-001
-  Hostname:   your-hostname
   CPU Usage:       45.23%
   Memory Usage:    67.89%
 ======================================================================
@@ -119,7 +116,7 @@ find . -name "*.pyc" -delete 2>/dev/null
 # Restart components
 python3 run_server.py  # Terminal 1
 python3 run_analysis.py  # Terminal 2
-python3 run_agent.py --mode mock --iterations 5  # Terminal 3
+python3 run_agent.py --agent-id agent-001  # Terminal 3
 ```
 
 ### "Connection refused"
@@ -163,8 +160,7 @@ Once everything works:
 
 - Use `--help` on any script to see options
 - Check [Kafka UI](http://localhost:8080) to monitor topics
-- Use `--mode real` for actual system metrics (requires psutil)
-- Set `--iterations 0` for continuous monitoring
+- Send commands: `python3 send_command.py --agent-id agent-001 --command start`
 
 ---
 

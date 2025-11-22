@@ -4,81 +4,7 @@ Complete reference for all data structures used in the monitoring system.
 
 ## Overview
 
-The system uses three data model layers:
-1. **Python (Pydantic)** - For validation and Python code
-2. **gRPC (Protobuf)** - For Agent ↔ Server communication
-3. **Kafka (JSON)** - For Server ↔ Analysis App communication
-
----
-
-## Python Models (`shared/models.py`)
-
-### SystemMetrics
-
-System metrics collected from monitored hosts.
-
-```python
-class SystemMetrics(BaseModel):
-    timestamp: datetime                  # Collection timestamp
-    cpu_percent: Optional[float]         # CPU usage (0-100%)
-    memory_percent: Optional[float]      # Memory usage (0-100%)
-    memory_used_mb: Optional[float]      # Memory used in MB
-    memory_total_mb: Optional[float]     # Total memory in MB
-    disk_read_mb: Optional[float]        # Disk read rate (MB/s)
-    disk_write_mb: Optional[float]       # Disk write rate (MB/s)
-    net_in_mb: Optional[float]           # Network in rate (MB/s)
-    net_out_mb: Optional[float]          # Network out rate (MB/s)
-    custom_metrics: Optional[Dict]       # Custom metrics
-```
-
-### MonitoringData
-
-Complete monitoring data package.
-
-```python
-class MonitoringData(BaseModel):
-    agent_id: str                        # Agent identifier
-    hostname: str                        # Hostname
-    timestamp: datetime                  # Timestamp
-    metrics: SystemMetrics               # Metrics data
-    metadata: Optional[Dict]             # Metadata (OS, etc.)
-```
-
-### Command
-
-Commands sent to agents.
-
-```python
-class CommandType(Enum):
-    UPDATE_CONFIG = "update_config"
-    START_COLLECTION = "start_collection"
-    STOP_COLLECTION = "stop_collection"
-    RESTART_AGENT = "restart_agent"
-    GET_STATUS = "get_status"
-    CUSTOM = "custom"
-
-class Command(BaseModel):
-    command_id: str                      # Command ID
-    command_type: CommandType            # Command type
-    target_agent_id: Optional[str]       # Target agent
-    parameters: Optional[Dict]           # Parameters
-    timestamp: datetime                  # Timestamp
-    timeout: Optional[int] = 30          # Timeout (seconds)
-```
-
-### CommandResponse
-
-Agent response after command execution.
-
-```python
-class CommandResponse(BaseModel):
-    command_id: str                      # Command ID
-    agent_id: str                        # Agent ID
-    success: bool                        # Success status
-    message: Optional[str]               # Response message
-    result: Optional[Dict]               # Result data
-    timestamp: datetime                  # Timestamp
-```
+The system uses Protocol Buffers for gRPC communication and JSON for Kafka messages.
 
 ---
 
@@ -88,247 +14,238 @@ class CommandResponse(BaseModel):
 
 ```protobuf
 service MonitoringService {
-    // Bidirectional streaming for agent-server communication
-    rpc StreamCommunication(stream AgentMessage) returns (stream ServerMessage);
+    // Bidirectional streaming: Agent sends metrics, receives commands
+    rpc StreamMetrics(stream MetricsRequest) returns (stream Command);
     
-    // Agent registration (called once at startup)
-    rpc RegisterAgent(AgentRegistration) returns (Ack);
+    // Send command to an agent (from external clients)
+    rpc SendCommand(Command) returns (CommandResponse);
 }
 ```
 
-### AgentMessage (Agent → Server)
+### SystemMetrics
+
+System performance metrics.
 
 ```protobuf
-message AgentMessage {
-    oneof message {
-        MetricsData metrics_data = 1;
-        CommandResponseMessage command_response = 2;
-        AgentHeartbeat heartbeat = 3;
-    }
+message SystemMetrics {
+    double cpu_percent = 1;        // CPU usage (0-100)
+    double memory_percent = 2;      // Memory usage (0-100)
+    double memory_used_mb = 3;     // Memory used in MB
+    double memory_total_mb = 4;    // Total memory in MB
+    double disk_read_mb = 5;       // Disk read rate (MB/s)
+    double disk_write_mb = 6;       // Disk write rate (MB/s)
+    double net_in_mb = 7;          // Network in rate (MB/s)
+    double net_out_mb = 8;         // Network out rate (MB/s)
 }
 ```
 
-### ServerMessage (Server → Agent)
+### MetricsRequest
+
+Metrics sent from agent to server.
 
 ```protobuf
-message ServerMessage {
-    oneof message {
-        CommandMessage command = 1;
-        Ack acknowledgment = 2;
-    }
+message MetricsRequest {
+    string agent_id = 1;           // Agent identifier
+    int64 timestamp = 2;           // Unix timestamp
+    SystemMetrics metrics = 3;     // System metrics
+    map<string, string> metadata = 4; // Additional metadata
 }
 ```
 
-### MetricsData
+### Command
+
+Start/Stop commands for agents.
 
 ```protobuf
-message MetricsData {
-    string agent_id = 1;
-    string hostname = 2;
-    int64 timestamp = 3;
-    SystemMetrics metrics = 4;
-    map<string, string> metadata = 5;
+enum CommandType {
+    START = 0;
+    STOP = 1;
+}
+
+message Command {
+    string agent_id = 1;           // Target agent ID
+    CommandType type = 2;          // Command type (START or STOP)
+}
+```
+
+### CommandResponse
+
+Response to command send request.
+
+```protobuf
+message CommandResponse {
+    bool success = 1;              // Whether command was queued successfully
+    string message = 2;            // Response message
 }
 ```
 
 ---
 
-## Kafka Messages (`shared/kafka_schemas.py`)
+## Kafka Messages
 
-### Topics
+### Topic: `monitoring-data`
 
-| Topic | Direction | Content |
-|-------|-----------|---------|
-| `monitoring-data` | Server → Analysis | Agent metrics |
-| `commands` | Analysis → Server | Commands to agents |
-| `command-responses` | Server → Analysis | Command results |
-| `agent-status` | Server → Analysis | Agent heartbeats |
+Messages sent from gRPC server to Kafka containing monitoring metrics.
 
-### monitoring-data (JSON)
-
+**Schema:**
 ```json
 {
-    "agent_id": "agent-001",
-    "hostname": "web-server-01",
-    "timestamp": "2025-11-22T10:30:00.123456",
-    "metrics": {
-        "cpu_percent": 45.23,
-        "memory_percent": 67.89,
-        "memory_used_mb": 5000.0,
-        "memory_total_mb": 8000.0,
-        "disk_read_mb": 12.5,
-        "disk_write_mb": 8.3,
-        "net_in_mb": 5.2,
-        "net_out_mb": 3.1,
-        "custom_metrics": {}
-    },
-    "metadata": {
-        "os": "posix",
-        "mode": "mock"
-    }
+  "agent_id": "string",
+  "timestamp": "string (ISO 8601)",
+  "metrics": {
+    "cpu_percent": "float",
+    "memory_percent": "float",
+    "memory_used_mb": "float",
+    "memory_total_mb": "float",
+    "disk_read_mb": "float",
+    "disk_write_mb": "float",
+    "net_in_mb": "float",
+    "net_out_mb": "float"
+  },
+  "metadata": "dict"
 }
 ```
 
-### commands (JSON)
-
+**Example:**
 ```json
 {
-    "command_id": "cmd-12345",
-    "command_type": "get_status",
-    "target_agent_id": "agent-001",
-    "parameters": {},
-    "timestamp": "2025-11-22T10:31:00Z",
-    "timeout": 30
+  "agent_id": "agent-001",
+  "timestamp": "2025-11-22T10:30:00Z",
+  "metrics": {
+    "cpu_percent": 45.2,
+    "memory_percent": 62.5,
+    "memory_used_mb": 5000.0,
+    "memory_total_mb": 8000.0,
+    "disk_read_mb": 12.5,
+    "disk_write_mb": 8.3,
+    "net_in_mb": 5.2,
+    "net_out_mb": 3.1
+  },
+  "metadata": {"os": "Linux", "version": "Ubuntu 22.04"}
 }
 ```
 
-### command-responses (JSON)
+---
 
-```json
-{
-    "command_id": "cmd-12345",
-    "agent_id": "agent-001",
-    "success": true,
-    "message": "Status retrieved successfully",
-    "result": {
-        "status": "running",
-        "uptime": "3600"
-    },
-    "timestamp": "2025-11-22T10:31:05Z"
-}
+## Configuration
+
+### Kafka Topics (`shared/config.py`)
+
+```python
+class KafkaTopics:
+    MONITORING_DATA = "monitoring-data"  # gRPC Server → Analysis App
 ```
+
+---
+
+## Data Flow
+
+```
+Agent → StreamMetrics(MetricsRequest) → Server → Kafka → Analysis App
+Agent ← StreamMetrics(Command) ← Server
+```
+
+**Commands:**
+- `START` - Start metrics collection
+- `STOP` - Stop metrics collection
+
+**Note:** Configuration (interval, metrics, plugins) is handled separately, not via commands.
+
+---
+
+## Key Points
+
+1. **No Custom Metrics** - Removed from SystemMetrics
+2. **No Hostname** - Removed from metrics data
+3. **Commands Only** - Server sends START/STOP commands only
+4. **Single Kafka Topic** - Only `monitoring-data`
+5. **Bidirectional Streaming** - Agent ↔ Server via gRPC
+6. **CommandResponse** - Used for SendCommand RPC method
 
 ---
 
 ## Usage Examples
 
-### Creating Monitoring Data
-
-```python
-from shared.models import MonitoringData, SystemMetrics
-from datetime import datetime
-
-metrics = SystemMetrics(
-    timestamp=datetime.now(),
-    cpu_percent=45.2,
-    memory_percent=62.5,
-    memory_used_mb=5000.0,
-    memory_total_mb=8000.0
-)
-
-data = MonitoringData(
-    agent_id="agent-001",
-    hostname="server-01",
-    timestamp=datetime.now(),
-    metrics=metrics,
-    metadata={"os": "Linux"}
-)
-
-# Convert to JSON
-json_str = data.model_dump_json()
-```
-
-### Sending via gRPC
+### Creating SystemMetrics (Protobuf)
 
 ```python
 from shared import monitoring_pb2
 
-metrics_data = monitoring_pb2.MetricsData(
-    agent_id="agent-001",
-    hostname="server-01",
-    timestamp=int(datetime.now().timestamp()),
-    metrics=monitoring_pb2.SystemMetrics(
-        cpu_percent=45.2,
-        memory_percent=62.5,
-        memory_used_mb=5000.0,
-        memory_total_mb=8000.0
-    ),
-    metadata={"os": "Linux"}
+metrics = monitoring_pb2.SystemMetrics(
+    cpu_percent=45.2,
+    memory_percent=62.5,
+    memory_used_mb=5000.0,
+    memory_total_mb=8000.0,
+    disk_read_mb=12.5,
+    disk_write_mb=8.3,
+    net_in_mb=5.2,
+    net_out_mb=3.1
 )
-
-agent_message = monitoring_pb2.AgentMessage(metrics_data=metrics_data)
 ```
 
-### Consuming from Kafka
+### Creating Command
 
 ```python
-from confluent_kafka import Consumer
-import json
+from shared import monitoring_pb2
 
-consumer = Consumer({
-    'bootstrap.servers': 'localhost:9092',
-    'group.id': 'analysis-group',
-    'auto.offset.reset': 'earliest'
-})
+command = monitoring_pb2.Command(
+    agent_id="agent-001",
+    type=monitoring_pb2.START
+)
+```
 
-consumer.subscribe(['monitoring-data'])
+### Sending Command and Getting Response
 
-while True:
-    msg = consumer.poll(1.0)
-    if msg is None:
-        continue
-    
-    data = json.loads(msg.value().decode('utf-8'))
-    print(f"Agent: {data['agent_id']}")
-    print(f"CPU: {data['metrics']['cpu_percent']}%")
+```python
+from shared import monitoring_pb2, monitoring_pb2_grpc
+import grpc
+
+channel = grpc.insecure_channel("localhost:50051")
+stub = monitoring_pb2_grpc.MonitoringServiceStub(channel)
+
+command = monitoring_pb2.Command(
+    agent_id="agent-001",
+    type=monitoring_pb2.STOP
+)
+
+response = stub.SendCommand(command)
+if response.success:
+    print(f"✓ {response.message}")
+else:
+    print(f"✗ {response.message}")
 ```
 
 ---
 
 ## Field Descriptions
 
-### Metrics Fields
+### SystemMetrics Fields
 
-| Field | Type | Range | Description |
-|-------|------|-------|-------------|
-| `cpu_percent` | float | 0-100 | CPU usage percentage |
-| `memory_percent` | float | 0-100 | Memory usage percentage |
-| `memory_used_mb` | float | >0 | Memory used in megabytes |
-| `memory_total_mb` | float | >0 | Total memory in megabytes |
-| `disk_read_mb` | float | ≥0 | Disk read rate (MB/s) |
-| `disk_write_mb` | float | ≥0 | Disk write rate (MB/s) |
-| `net_in_mb` | float | ≥0 | Network incoming rate (MB/s) |
-| `net_out_mb` | float | ≥0 | Network outgoing rate (MB/s) |
+| Field | Type | Description | Range |
+|-------|------|-------------|-------|
+| `cpu_percent` | double | CPU usage percentage | 0-100 |
+| `memory_percent` | double | Memory usage percentage | 0-100 |
+| `memory_used_mb` | double | Memory used in MB | ≥ 0 |
+| `memory_total_mb` | double | Total memory in MB | ≥ 0 |
+| `disk_read_mb` | double | Disk read rate in MB/s | ≥ 0 |
+| `disk_write_mb` | double | Disk write rate in MB/s | ≥ 0 |
+| `net_in_mb` | double | Network incoming rate in MB/s | ≥ 0 |
+| `net_out_mb` | double | Network outgoing rate in MB/s | ≥ 0 |
 
-### Timestamps
+### Command Fields
 
-All timestamps use ISO 8601 format in JSON:
-- Format: `"2025-11-22T10:30:00.123456"`
-- Timezone: UTC
-- Protobuf: Unix timestamp (int64)
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_id` | string | Target agent identifier |
+| `type` | CommandType | Command type: START or STOP |
 
----
+### CommandResponse Fields
 
-## Validation
-
-### Pydantic Validation
-
-Models automatically validate:
-- Required fields are present
-- Types are correct
-- Values are in valid ranges (e.g., CPU 0-100%)
-- Datetime serialization to ISO 8601
-
-### gRPC Validation
-
-Protocol buffers provide:
-- Type safety
-- Efficient binary serialization
-- Backward compatibility
-- Field presence detection
-
-### Kafka Validation
-
-JSON schemas provide:
-- Human-readable format
-- Easy debugging
-- Language-agnostic
-- Schema evolution
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | bool | Whether command was queued successfully |
+| `message` | string | Response message |
 
 ---
 
-For more details, see:
-- `shared/models.py` - Python implementations
-- `shared/monitoring.proto` - gRPC definitions
-- `shared/kafka_schemas.py` - Kafka schemas
-
+**Last Updated:** 2025-11-22

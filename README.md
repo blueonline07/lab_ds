@@ -44,10 +44,14 @@ python3 run_agent.py --mode mock --iterations 10
 
 ```
 lab_ds/
-├── shared/              # Common data models & protocols
-├── agent/              # Monitor agent (collects metrics)
+├── shared/              # Protocol definitions & config
+│   ├── monitoring.proto # gRPC protocol definition
+│   ├── config.py        # Kafka topics configuration
+│   └── monitoring_pb2*.py # Generated protobuf files
 ├── grpc_server/        # gRPC server + Kafka producer
 ├── analysis_app/       # Kafka consumer + analysis
+├── mock_agent.py       # Mock agent (generates test data)
+├── send_command.py     # Send START/STOP commands to agents
 ├── run_agent.py        # ⭐ Run agent
 ├── run_server.py       # ⭐ Run server
 └── run_analysis.py     # ⭐ Run analysis app
@@ -59,9 +63,7 @@ lab_ds/
 ```bash
 python3 run_agent.py \
     --agent-id agent-001 \
-    --mode mock \            # or 'real' for actual metrics
-    --interval 5 \           # seconds between metrics
-    --iterations 10          # 0 = infinite
+    --server localhost:50051
 ```
 
 ### Server Options
@@ -83,15 +85,16 @@ python3 run_analysis.py \
 ### System Metrics
 - CPU usage (%)
 - Memory usage (%)
-- Disk I/O (MB/s)
-- Network I/O (MB/s)
-- Custom metrics
+- Memory used/total (MB)
+- Disk read/write (MB/s)
+- Network in/out (MB/s)
+
+### Commands
+- **START** - Start metrics collection
+- **STOP** - Stop metrics collection
 
 ### Kafka Topics
-- `monitoring-data` - Agent metrics → Analysis app
-- `commands` - Analysis app → Agent commands
-- `command-responses` - Agent → Analysis app responses
-- `agent-status` - Agent heartbeats & status
+- `monitoring-data` - Agent metrics → Analysis app (via gRPC server)
 
 ## 🔧 Configuration
 
@@ -116,29 +119,32 @@ Accessible at:
 
 ✅ **Bidirectional Streaming** - Real-time communication, no polling  
 ✅ **Modular Architecture** - Independent, scalable components  
-✅ **Mock & Real Modes** - Easy testing without actual system metrics  
+✅ **Mock Agent** - Easy testing with generated metrics  
 ✅ **Kafka Integration** - Persistent storage & decoupling  
-✅ **Plugin System** - Extensible data processing  
-✅ **CLI Configuration** - No hard-coded values  
+✅ **Command Control** - START/STOP agents remotely  
+✅ **Simple Configuration** - Clean, minimal setup  
 
 ## 🎓 Examples
 
 ### Basic Usage
 ```bash
-# Quick test with mock data
-python3 run_server.py &
-python3 run_analysis.py &
-python3 run_agent.py --mode mock --iterations 5
+# Terminal 1: Start gRPC Server
+python3 run_server.py
+
+# Terminal 2: Start Analysis App
+python3 run_analysis.py
+
+# Terminal 3: Start Mock Agent
+python3 run_agent.py --agent-id agent-001
 ```
 
-### Production Usage
+### Send Commands
 ```bash
-# Real metrics, continuous monitoring
-python3 run_agent.py \
-    --agent-id prod-web-01 \
-    --mode real \
-    --interval 10 \
-    --iterations 0
+# Send START command to agent
+python3 send_command.py --agent-id agent-001 --command start
+
+# Send STOP command to agent
+python3 send_command.py --agent-id agent-001 --command stop
 ```
 
 ### Multiple Agents
@@ -159,17 +165,19 @@ open http://localhost:8080
 Check active agents:
 ```bash
 # Server logs show connected agents
-✓ Agent registered: agent-001 on hostname
-✓ Forwarded metrics #1 from agent 'agent-001' to Kafka
+✓ Agent connected (streaming): agent-001
+[Metrics Received - Stream]
+  Agent: agent-001
+  CPU: 45.2%
+  Memory: 62.5%
+✓ Forwarded to Kafka topic: monitoring-data
 ```
 
 ## 🛠️ Development
 
 ### Generate gRPC Code
 ```bash
-cd shared
-python3 -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. monitoring.proto
-sed -i '' 's/import monitoring_pb2/from . import monitoring_pb2/' monitoring_pb2_grpc.py
+python3 -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. shared/monitoring.proto
 ```
 
 ### Run Tests
@@ -194,7 +202,6 @@ MIT License
 Built with:
 - gRPC - Efficient RPC framework
 - Kafka - Distributed streaming platform
-- Pydantic - Data validation
 - Protocol Buffers - Data serialization
 
 ---

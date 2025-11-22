@@ -40,7 +40,6 @@ Start with the [main README](../README.md) for installation and basic usage.
 - Configuration details
 
 ### DATA_MODELS.md
-- Python data models (Pydantic)
 - gRPC protocol buffers
 - Kafka message schemas
 - Usage examples
@@ -77,9 +76,9 @@ Start with the [main README](../README.md) for installation and basic usage.
 - Each component's role? → [ARCHITECTURE.md](ARCHITECTURE.md)
 
 **"Where is..."**
-- The agent code? → `agent/agent.py`
+- The agent code? → `mock_agent.py`
 - The server code? → `grpc_server/server.py`
-- The data models? → `shared/models.py`
+- The configuration? → `shared/config.py`
 - The protocol definition? → `shared/monitoring.proto`
 
 ## 📝 Document Status

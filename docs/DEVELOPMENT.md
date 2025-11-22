@@ -35,15 +35,13 @@ docker-compose up -d
 ```
 lab_ds/
 ├── shared/                     # Shared components
-│   ├── models.py              # Pydantic data models
-│   ├── kafka_schemas.py       # Kafka message schemas
+│   ├── config.py              # Kafka topics configuration
 │   ├── monitoring.proto       # gRPC protocol definition
 │   ├── monitoring_pb2.py      # Generated (don't edit)
 │   └── monitoring_pb2_grpc.py # Generated (don't edit)
 │
-├── agent/                      # Agent module
-│   ├── agent.py               # Agent implementation
-│   └── plugins/               # Plugin directory
+├── mock_agent.py              # Mock agent implementation
+├── send_command.py            # Command sender
 │
 ├── grpc_server/                # Server module
 │   ├── server.py              # gRPC service
