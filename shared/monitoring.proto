@@ -4,12 +4,10 @@ package monitoring;
 
 // Service definition for Monitor Agent <-> gRPC Server communication
 service MonitoringService {
-    // Bidirectional streaming for agent-server communication
-    // Agent streams: MetricsRequest, CommandResponseMessage
-    // Server streams: CommandMessage, Ack
-    rpc StreamCommunication(stream AgentMessage) returns (stream ServerMessage);
+    // Agent sends monitoring data to server
+    rpc SendMetrics(MetricsRequest) returns (MetricsResponse);
     
-    // Agent registers itself with the server (called once at startup)
+    // Agent registers itself with the server (optional)
     rpc RegisterAgent(AgentRegistration) returns (Ack);
 }
 
@@ -90,36 +88,6 @@ message AgentHeartbeat {
     string agent_id = 1;
     int64 timestamp = 2;
     string status = 3;  // running, stopped, error
-}
-
-// ============================================================================
-// Streaming Messages
-// ============================================================================
-
-// Message from Agent to Server
-message AgentMessage {
-    oneof message {
-        MetricsData metrics_data = 1;
-        CommandResponseMessage command_response = 2;
-        AgentHeartbeat heartbeat = 3;
-    }
-}
-
-// Simplified metrics data for streaming
-message MetricsData {
-    string agent_id = 1;
-    string hostname = 2;
-    int64 timestamp = 3;
-    SystemMetrics metrics = 4;
-    map<string, string> metadata = 5;
-}
-
-// Message from Server to Agent
-message ServerMessage {
-    oneof message {
-        CommandMessage command = 1;
-        Ack acknowledgment = 2;
-    }
 }
 
 // ============================================================================

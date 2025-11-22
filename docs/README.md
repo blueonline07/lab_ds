@@ -10,7 +10,6 @@ Complete documentation for the monitoring system.
 ### Core Documentation
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and design patterns
 - **[DATA_MODELS.md](DATA_MODELS.md)** - Complete data model reference
-- **[STREAMING.md](STREAMING.md)** - Bidirectional streaming implementation
 
 ### Development
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** - Development guide and best practices
@@ -29,7 +28,6 @@ Start with the [main README](../README.md) for installation and basic usage.
 
 ### For Understanding
 - **Architecture**: How components interact → [ARCHITECTURE.md](ARCHITECTURE.md)
-- **Streaming**: How real-time communication works → [STREAMING.md](STREAMING.md)
 - **Data**: What data flows through the system → [DATA_MODELS.md](DATA_MODELS.md)
 
 ## 📖 Document Descriptions
@@ -47,13 +45,6 @@ Start with the [main README](../README.md) for installation and basic usage.
 - Kafka message schemas
 - Usage examples
 - Field descriptions
-
-### STREAMING.md
-- Bidirectional streaming architecture
-- Protocol definition
-- Implementation details
-- Message flow examples
-- Advantages over polling
 
 ### DEVELOPMENT.md
 - Setup instructions
@@ -83,7 +74,6 @@ Start with the [main README](../README.md) for installation and basic usage.
 
 **"What is..."**
 - The data format? → [DATA_MODELS.md](DATA_MODELS.md)
-- The streaming protocol? → [STREAMING.md](STREAMING.md)
 - Each component's role? → [ARCHITECTURE.md](ARCHITECTURE.md)
 
 **"Where is..."**
@@ -99,7 +89,6 @@ Start with the [main README](../README.md) for installation and basic usage.
 | README.md | ✅ Current | Latest |
 | ARCHITECTURE.md | ✅ Current | Latest |
 | DATA_MODELS.md | ✅ Current | Latest |
-| STREAMING.md | ✅ Current | Latest |
 | DEVELOPMENT.md | ✅ Current | Latest |
 | PROTOBUF.md | ✅ Current | Latest |
 | TEST_FLOW.md | ✅ Current | Latest |

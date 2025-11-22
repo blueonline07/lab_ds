@@ -35,10 +35,10 @@ class MonitoringServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.StreamCommunication = channel.stream_stream(
-                '/monitoring.MonitoringService/StreamCommunication',
-                request_serializer=monitoring__pb2.AgentMessage.SerializeToString,
-                response_deserializer=monitoring__pb2.ServerMessage.FromString,
+        self.SendMetrics = channel.unary_unary(
+                '/monitoring.MonitoringService/SendMetrics',
+                request_serializer=monitoring__pb2.MetricsRequest.SerializeToString,
+                response_deserializer=monitoring__pb2.MetricsResponse.FromString,
                 _registered_method=True)
         self.RegisterAgent = channel.unary_unary(
                 '/monitoring.MonitoringService/RegisterAgent',
@@ -51,17 +51,15 @@ class MonitoringServiceServicer(object):
     """Service definition for Monitor Agent <-> gRPC Server communication
     """
 
-    def StreamCommunication(self, request_iterator, context):
-        """Bidirectional streaming for agent-server communication
-        Agent streams: MetricsRequest, CommandResponseMessage
-        Server streams: CommandMessage, Ack
+    def SendMetrics(self, request, context):
+        """Agent sends monitoring data to server
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def RegisterAgent(self, request, context):
-        """Agent registers itself with the server (called once at startup)
+        """Agent registers itself with the server (optional)
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -70,10 +68,10 @@ class MonitoringServiceServicer(object):
 
 def add_MonitoringServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'StreamCommunication': grpc.stream_stream_rpc_method_handler(
-                    servicer.StreamCommunication,
-                    request_deserializer=monitoring__pb2.AgentMessage.FromString,
-                    response_serializer=monitoring__pb2.ServerMessage.SerializeToString,
+            'SendMetrics': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendMetrics,
+                    request_deserializer=monitoring__pb2.MetricsRequest.FromString,
+                    response_serializer=monitoring__pb2.MetricsResponse.SerializeToString,
             ),
             'RegisterAgent': grpc.unary_unary_rpc_method_handler(
                     servicer.RegisterAgent,
@@ -93,7 +91,7 @@ class MonitoringService(object):
     """
 
     @staticmethod
-    def StreamCommunication(request_iterator,
+    def SendMetrics(request,
             target,
             options=(),
             channel_credentials=None,
@@ -103,12 +101,12 @@ class MonitoringService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.stream_stream(
-            request_iterator,
+        return grpc.experimental.unary_unary(
+            request,
             target,
-            '/monitoring.MonitoringService/StreamCommunication',
-            monitoring__pb2.AgentMessage.SerializeToString,
-            monitoring__pb2.ServerMessage.FromString,
+            '/monitoring.MonitoringService/SendMetrics',
+            monitoring__pb2.MetricsRequest.SerializeToString,
+            monitoring__pb2.MetricsResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -4,6 +4,6 @@ Entry point for running the gRPC server
 """
 
 if __name__ == "__main__":
-    from grpc_server.server import main
+    from grpc_server.server import serve
 
-    main()
+    serve()

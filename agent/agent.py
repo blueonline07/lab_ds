@@ -1,17 +1,15 @@
 """
-Monitor Agent - Collects system metrics and sends to gRPC Server via bidirectional streaming
+Monitor Agent - Collects system metrics and sends to gRPC Server
 """
 
 import grpc
 import socket
 import time
 import random
-import threading
 from datetime import datetime
-from typing import Optional, Generator
+from typing import Optional
 import sys
 import os
-import queue
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -22,7 +20,7 @@ from shared import monitoring_pb2_grpc
 
 
 class MonitorAgent:
-    """Monitor agent that collects and streams system metrics to gRPC server"""
+    """Monitor agent that collects and sends system metrics to gRPC server"""
 
     def __init__(
         self,
@@ -44,32 +42,12 @@ class MonitorAgent:
         self.mode = mode
         self.channel: Optional[grpc.Channel] = None
         self.stub = None
-        self.running = False
-        self.message_queue = queue.Queue()
 
     def connect(self):
         """Establish gRPC connection to server"""
         self.channel = grpc.insecure_channel(self.grpc_server_address)
         self.stub = monitoring_pb2_grpc.MonitoringServiceStub(self.channel)
         print(f"✓ Connected to gRPC server at {self.grpc_server_address}")
-
-    def register(self):
-        """Register agent with server"""
-        try:
-            registration = monitoring_pb2.AgentRegistration(
-                agent_id=self.agent_id,
-                hostname=self.hostname,
-                os_type=os.name,
-                os_version=str(sys.platform),
-                timestamp=int(datetime.now().timestamp()),
-            )
-            response = self.stub.RegisterAgent(registration)
-            if response.success:
-                print(f"✓ Agent registered: {response.message}")
-            else:
-                print(f"✗ Registration failed: {response.message}")
-        except Exception as e:
-            print(f"✗ Error during registration: {e}")
 
     def collect_metrics(self) -> monitoring_pb2.SystemMetrics:
         """
@@ -142,110 +120,58 @@ class MonitorAgent:
             print("✗ psutil not installed. Using mock data instead.")
             return self._generate_mock_metrics()
 
-    def generate_agent_messages(
-        self, interval: int, iterations: int
-    ) -> Generator[monitoring_pb2.AgentMessage, None, None]:
+    def send_metrics(self) -> bool:
         """
-        Generator that yields agent messages for streaming
+        Send metrics to gRPC server
 
-        Args:
-            interval: Collection interval in seconds
-            iterations: Number of iterations (0 = infinite)
-
-        Yields:
-            AgentMessage containing metrics or responses
+        Returns:
+            True if successful, False otherwise
         """
-        count = 0
-        while self.running:
-            # Check if we should stop
-            if iterations > 0 and count >= iterations:
-                print(f"\n✓ Completed {iterations} iterations. Stopping stream.")
-                break
-
-            # Send heartbeat
-            heartbeat = monitoring_pb2.AgentHeartbeat(
-                agent_id=self.agent_id,
-                timestamp=int(datetime.now().timestamp()),
-                status="running",
-            )
-            yield monitoring_pb2.AgentMessage(heartbeat=heartbeat)
-
-            # Collect and send metrics
+        try:
+            # Collect metrics
             metrics = self.collect_metrics()
-            metrics_data = monitoring_pb2.MetricsData(
+
+            # Create metrics request
+            request = monitoring_pb2.MetricsRequest(
                 agent_id=self.agent_id,
                 hostname=self.hostname,
                 timestamp=int(datetime.now().timestamp()),
                 metrics=metrics,
-                metadata={"os": os.name, "mode": self.mode},
+                metadata={
+                    "os": os.name,
+                    "mode": self.mode,
+                },
             )
 
-            agent_message = monitoring_pb2.AgentMessage(metrics_data=metrics_data)
-            yield agent_message
+            # Send via gRPC
+            response = self.stub.SendMetrics(request)
 
-            count += 1
-            print(f"\n[{count}] Streamed metrics:")
-            print(f"  CPU: {metrics.cpu_percent:.2f}%")
-            print(f"  Memory: {metrics.memory_percent:.2f}%")
+            if response.success:
+                print(f"✓ Metrics sent successfully")
+                print(f"  CPU: {metrics.cpu_percent:.2f}%")
+                print(f"  Memory: {metrics.memory_percent:.2f}%")
+                print(f"  Response: {response.message}")
+                return True
+            else:
+                print(f"✗ Failed to send metrics: {response.message}")
+                return False
 
-            # Check for any command responses to send
-            try:
-                while not self.message_queue.empty():
-                    response = self.message_queue.get_nowait()
-                    yield monitoring_pb2.AgentMessage(command_response=response)
-            except queue.Empty:
-                pass
-
-            # Wait for next interval
-            time.sleep(interval)
-
-    def handle_server_messages(
-        self, responses: Generator[monitoring_pb2.ServerMessage, None, None]
-    ):
-        """
-        Handle incoming messages from server
-
-        Args:
-            responses: Generator of ServerMessage from server
-        """
-        try:
-            for response in responses:
-                if response.HasField("command"):
-                    command = response.command
-                    print(f"\n📩 Received command: {command.command_type}")
-                    print(f"  Command ID: {command.command_id}")
-
-                    # Process command (placeholder)
-                    command_response = monitoring_pb2.CommandResponseMessage(
-                        command_id=command.command_id,
-                        agent_id=self.agent_id,
-                        success=True,
-                        message=f"Command {command.command_type} executed",
-                        result={},
-                        timestamp=int(datetime.now().timestamp()),
-                    )
-
-                    # Queue response to send back
-                    self.message_queue.put(command_response)
-
-                elif response.HasField("acknowledgment"):
-                    ack = response.acknowledgment
-                    if not ack.success:
-                        print(f"✗ Server error: {ack.message}")
-
+        except grpc.RpcError as e:
+            print(f"✗ gRPC error: {e.code()} - {e.details()}")
+            return False
         except Exception as e:
-            print(f"✗ Error handling server messages: {e}")
+            print(f"✗ Error sending metrics: {e}")
+            return False
 
     def run(self, interval: int = 5, iterations: int = 0):
         """
-        Main loop: establish bidirectional streaming with server
+        Main loop: collect and send metrics periodically
 
         Args:
-            interval: Time between metric collections in seconds
+            interval: Time between sends in seconds
             iterations: Number of messages to send (0 = infinite)
         """
         self.connect()
-        self.register()
 
         print("=" * 60)
         print(f"Monitor Agent Started: {self.agent_id}")
@@ -255,27 +181,29 @@ class MonitorAgent:
         print(f"  gRPC Server: {self.grpc_server_address}")
         print(f"  Interval: {interval}s")
         print(f"  Iterations: {iterations if iterations > 0 else 'infinite'}")
-        print(f"  Using bidirectional streaming")
         print("=" * 60)
         print()
 
-        self.running = True
-
         try:
-            # Start bidirectional streaming
-            responses = self.stub.StreamCommunication(
-                self.generate_agent_messages(interval, iterations)
-            )
+            count = 0
+            while True:
+                count += 1
+                print(f"\n[{count}] Collecting and sending metrics...")
 
-            # Handle server responses in main thread
-            self.handle_server_messages(responses)
+                # Send metrics
+                self.send_metrics()
 
-        except grpc.RpcError as e:
-            print(f"\n✗ gRPC error: {e.code()} - {e.details()}")
+                # Check if we should stop
+                if iterations > 0 and count >= iterations:
+                    print(f"\n✓ Completed {iterations} iterations. Stopping.")
+                    break
+
+                # Wait for next interval
+                time.sleep(interval)
+
         except KeyboardInterrupt:
             print("\n\nShutting down agent...")
         finally:
-            self.running = False
             if self.channel:
                 self.channel.close()
 
@@ -284,7 +212,7 @@ def main():
     """Main entry point for running the agent"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Monitor Agent (Bidirectional Streaming)")
+    parser = argparse.ArgumentParser(description="Monitor Agent")
     parser.add_argument(
         "--agent-id",
         type=str,
