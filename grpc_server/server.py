@@ -4,6 +4,7 @@ gRPC Server - Broker between Agents and Kafka
 - Forwards metrics to Kafka
 """
 
+import os
 import grpc
 from concurrent import futures
 
@@ -74,16 +75,20 @@ _server_servicer = None
 
 
 def serve(
-    port: int = 50051,
-    kafka_bootstrap_servers: str = "localhost:9092",
+    port: int = None,
+    kafka_bootstrap_servers: str = None,
 ):
     """
     Start the gRPC server
 
     Args:
-        port: Port to listen on
-        kafka_bootstrap_servers: Kafka bootstrap servers
+        port: Port to listen on (defaults to GRPC_SERVER_PORT env var or 50051)
+        kafka_bootstrap_servers: Kafka bootstrap servers (defaults to KAFKA_BOOTSTRAP_SERVERS env var or localhost:9092)
     """
+    if port is None:
+        port = int(os.getenv("GRPC_SERVER_PORT", "50051"))
+    if kafka_bootstrap_servers is None:
+        kafka_bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
     global _server_servicer
 
     # Initialize Kafka producer

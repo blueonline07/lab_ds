@@ -2,6 +2,7 @@
 """
 Helper script to set up etcd configuration for monitoring agents
 """
+import os
 import json
 import argparse
 import etcd3
@@ -9,8 +10,8 @@ import etcd3
 
 def setup_config(
     agent_id: str,
-    etcd_host: str = "localhost",
-    etcd_port: int = 2379,
+    etcd_host: str = None,
+    etcd_port: int = None,
     interval: int = 5,
     metrics: list = None,
     plugins: list = None,
@@ -20,12 +21,16 @@ def setup_config(
 
     Args:
         agent_id: Agent identifier for config key
-        etcd_host: etcd server hostname
-        etcd_port: etcd server port
+        etcd_host: etcd server hostname (defaults to ETCD_HOST env var or localhost)
+        etcd_port: etcd server port (defaults to ETCD_PORT env var or 2379)
         interval: Metrics collection interval in seconds
         metrics: List of metrics to collect
         plugins: List of plugin paths
     """
+    if etcd_host is None:
+        etcd_host = os.getenv("ETCD_HOST", "localhost")
+    if etcd_port is None:
+        etcd_port = int(os.getenv("ETCD_PORT", "2379"))
     if metrics is None:
         metrics = [
             "cpu",
@@ -66,9 +71,17 @@ def main():
         description="Set up etcd configuration for monitoring agents"
     )
     parser.add_argument(
-        "--etcd-host", type=str, default="localhost", help="etcd server hostname"
+        "--etcd-host", 
+        type=str, 
+        default=os.getenv("ETCD_HOST", "localhost"), 
+        help="etcd server hostname (default: ETCD_HOST env var or localhost)"
     )
-    parser.add_argument("--etcd-port", type=int, default=2379, help="etcd server port")
+    parser.add_argument(
+        "--etcd-port", 
+        type=int, 
+        default=int(os.getenv("ETCD_PORT", "2379")), 
+        help="etcd server port (default: ETCD_PORT env var or 2379)"
+    )
     parser.add_argument(
         "--agent-id",
         type=str,

@@ -2,6 +2,7 @@
 etcd Configuration Manager - handles reading and watching configuration from etcd
 """
 
+import os
 import json
 import threading
 from typing import Dict, Any, Optional
@@ -14,8 +15,8 @@ class EtcdConfigManager:
     def __init__(
         self,
         agent_id: str,
-        etcd_host: str = "localhost",
-        etcd_port: int = 2379,
+        etcd_host: str = None,
+        etcd_port: int = None,
         config_key: Optional[str] = None,
     ):
         """
@@ -23,10 +24,15 @@ class EtcdConfigManager:
 
         Args:
             agent_id: Agent identifier for config key
-            etcd_host: etcd server hostname
-            etcd_port: etcd server port
+            etcd_host: etcd server hostname (defaults to ETCD_HOST env var or localhost)
+            etcd_port: etcd server port (defaults to ETCD_PORT env var or 2379)
             config_key: Full config key path (if None, uses /monitor/config/<agent_id>)
         """
+        if etcd_host is None:
+            etcd_host = os.getenv("ETCD_HOST", "localhost")
+        if etcd_port is None:
+            etcd_port = int(os.getenv("ETCD_PORT", "2379"))
+        
         self.etcd_host = etcd_host
         self.etcd_port = etcd_port
         self.agent_id = agent_id

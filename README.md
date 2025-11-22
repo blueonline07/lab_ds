@@ -31,12 +31,25 @@ python setup_etcd_config.py --agent-id agent-001 --interval 5
 ```bash
 # Terminal 1: Start gRPC Server
 python3 run_server.py
+# Or with environment variables:
+# export GRPC_SERVER_PORT=50051
+# export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+# python3 run_server.py
 
 # Terminal 2: Start Analysis App
 python3 run_analysis.py get-metrics
+# Or with environment variables:
+# export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+# python3 run_analysis.py get-metrics
 
 # Terminal 3: Start Agent
 python3 run_agent.py --agent-id agent-001 --etcd-host localhost --etcd-port 2379
+# Or with environment variables:
+# export GRPC_SERVER_HOST=localhost
+# export GRPC_SERVER_PORT=50051
+# export ETCD_HOST=localhost
+# export ETCD_PORT=2379
+# python3 run_agent.py --agent-id agent-001
 ```
 
 ## 🏗️ Architecture
@@ -103,11 +116,25 @@ python3 run_agent.py \
     --config-key /monitor/config/agent-001  # Optional, defaults to /monitor/config/<agent-id>
 ```
 
+**Or use environment variables:**
+```bash
+export GRPC_SERVER_HOST=localhost
+export GRPC_SERVER_PORT=50051
+export ETCD_HOST=localhost
+export ETCD_PORT=2379
+python3 run_agent.py --agent-id agent-001
+```
+
 ### Server Options
 ```bash
 python3 run_server.py
-# Or with custom settings (if supported):
-# python3 run_server.py --port 50051 --kafka localhost:9092
+```
+
+**Or use environment variables:**
+```bash
+export GRPC_SERVER_PORT=50051
+export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+python3 run_server.py
 ```
 
 ### Analysis App Options
@@ -118,6 +145,12 @@ python3 run_analysis.py get-metrics \
     --timeout 10
 ```
 
+**Or use environment variables:**
+```bash
+export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+python3 run_analysis.py get-metrics --group-id my-team --timeout 10
+```
+
 ### Setting up etcd Configuration
 ```bash
 python setup_etcd_config.py \
@@ -125,6 +158,13 @@ python setup_etcd_config.py \
     --interval 5 \
     --metrics cpu memory "disk read" "disk write" "net in" "net out" \
     --plugins agent.plugins.deduplication.DeduplicationPlugin
+```
+
+**Or use environment variables:**
+```bash
+export ETCD_HOST=localhost
+export ETCD_PORT=2379
+python setup_etcd_config.py --agent-id agent-001 --interval 5
 ```
 
 ## 🔌 Plugin Architecture
@@ -231,10 +271,44 @@ docker exec -it etcd etcdctl put /monitor/config/agent-001 '{"interval": 10, "me
 - **etcd**: `localhost:2379`
 
 ### Environment Variables
+
+#### Protobuf Compatibility
 For protobuf compatibility with etcd3:
 ```bash
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 ```
+
+#### Configuration via Environment Variables
+
+All ports and hosts can be configured via environment variables, making it easy to deploy in different environments:
+
+**gRPC Server Configuration:**
+- `GRPC_SERVER_PORT` - Port for the gRPC server (default: `50051`)
+- `GRPC_SERVER_HOST` - Host for the gRPC server (default: `localhost`)
+
+**Kafka Configuration:**
+- `KAFKA_BOOTSTRAP_SERVERS` - Kafka bootstrap servers address (default: `localhost:9092`)
+
+**etcd Configuration:**
+- `ETCD_HOST` - etcd server hostname (default: `localhost`)
+- `ETCD_PORT` - etcd server port (default: `2379`)
+
+**Example Usage:**
+```bash
+# Set environment variables
+export GRPC_SERVER_PORT=50051
+export GRPC_SERVER_HOST=localhost
+export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+export ETCD_HOST=localhost
+export ETCD_PORT=2379
+
+# Run services (they will use the environment variables)
+python3 run_server.py
+python3 run_agent.py --agent-id agent-001
+python3 run_analysis.py get-metrics
+```
+
+**Note:** Command-line arguments will override environment variables if both are provided. Environment variables provide defaults when command-line arguments are not specified.
 
 ## 🎓 Examples
 

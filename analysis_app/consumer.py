@@ -2,6 +2,7 @@
 Analysis Application - CLI tool to read metrics from Kafka
 """
 
+import os
 from confluent_kafka import Consumer
 import socket
 import time
@@ -15,9 +16,11 @@ class AnalysisApp:
 
     def __init__(
         self,
-        bootstrap_servers: str = "localhost:9092",
+        bootstrap_servers: str = None,
         group_id: str = "analysis-app-group",
     ):
+        if bootstrap_servers is None:
+            bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
         self.bootstrap_servers = bootstrap_servers
         self.group_id = group_id
         self.consumer = Consumer(
@@ -94,8 +97,8 @@ Examples:
     parser.add_argument(
         "--kafka",
         type=str,
-        default="localhost:9092",
-        help="Kafka bootstrap servers (default: localhost:9092)",
+        default=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+        help="Kafka bootstrap servers (default: KAFKA_BOOTSTRAP_SERVERS env var or localhost:9092)",
     )
     parser.add_argument(
         "--group-id",

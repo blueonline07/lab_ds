@@ -2,6 +2,7 @@
 Kafka Producer - Forwards data to Kafka topics
 """
 
+import os
 import socket
 import json
 from datetime import datetime
@@ -13,7 +14,9 @@ from shared.config import KafkaTopics
 class KafkaProducerService:
     """Kafka producer for forwarding monitoring data"""
 
-    def __init__(self, bootstrap_servers: str = "localhost:9092"):
+    def __init__(self, bootstrap_servers: str = None):
+        if bootstrap_servers is None:
+            bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
         self.producer = Producer({
             "bootstrap.servers": bootstrap_servers,
             "security.protocol": "PLAINTEXT",
