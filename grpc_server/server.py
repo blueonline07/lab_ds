@@ -112,6 +112,33 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
                 del self.agent_command_queues[agent_id]
                 print(f"\n✓ Agent disconnected: {agent_id}")
 
+    def SendCommand(self, request, context):
+        """
+        Send a command to an agent (called by external clients)
+        
+        Args:
+            request: Command message
+            context: gRPC context
+            
+        Returns:
+            CommandResponse indicating success or failure
+        """
+        agent_id = request.agent_id
+        command_type = request.type
+        
+        success = self.send_command_to_agent(agent_id, command_type)
+        
+        if success:
+            return monitoring_pb2.CommandResponse(
+                success=True,
+                message=f"Command queued for agent {agent_id}"
+            )
+        else:
+            return monitoring_pb2.CommandResponse(
+                success=False,
+                message=f"Agent {agent_id} not connected"
+            )
+
     def send_command_to_agent(self, agent_id: str, command_type: int) -> bool:
         """
         Send a command to a specific agent

@@ -3,25 +3,23 @@ Command Sender - Send START/STOP commands to agents via gRPC server
 """
 
 import sys
+import grpc
 
 from shared import monitoring_pb2
-from grpc_server.server import get_server_servicer
+from shared import monitoring_pb2_grpc
 
 
-def send_command(agent_id: str, command_type: str):
+def send_command(
+    agent_id: str, command_type: str, server_address: str = "localhost:50051"
+):
     """
-    Send START or STOP command to an agent
+    Send START or STOP command to an agent via gRPC
 
     Args:
         agent_id: Target agent ID
         command_type: "start" or "stop"
+        server_address: gRPC server address (default: localhost:50051)
     """
-    servicer = get_server_servicer()
-
-    if servicer is None:
-        print("✗ Server not running")
-        return False
-
     # Parse command type
     command_type = command_type.lower()
     if command_type == "start":
@@ -32,16 +30,33 @@ def send_command(agent_id: str, command_type: str):
         print(f"✗ Invalid command type: {command_type} (must be 'start' or 'stop')")
         return False
 
-    print(f"📤 Sending {command_type.upper()} command to agent: {agent_id}")
+    # Connect to gRPC server
+    try:
+        channel = grpc.insecure_channel(server_address)
+        stub = monitoring_pb2_grpc.MonitoringServiceStub(channel)
 
-    # Send command
-    success = servicer.send_command_to_agent(agent_id, cmd_type)
+        # Create command message
+        command = monitoring_pb2.Command(agent_id=agent_id, type=cmd_type)
 
-    if success:
-        print("✓ Command sent successfully")
-        return True
-    else:
-        print("✗ Failed to send command (agent may not be connected)")
+        print(f"📤 Sending {command_type.upper()} command to agent: {agent_id}")
+
+        # Send command via gRPC
+        response = stub.SendCommand(command)
+
+        channel.close()
+
+        if response.success:
+            print(f"✓ {response.message}")
+            return True
+        else:
+            print(f"✗ {response.message}")
+            return False
+
+    except grpc.RpcError as e:
+        print(f"✗ gRPC Error: {e.code()} - {e.details()}")
+        return False
+    except Exception as e:
+        print(f"✗ Error: {e}")
         return False
 
 
@@ -75,6 +90,12 @@ Examples:
         choices=["start", "stop"],
         help="Command to send (start or stop)",
     )
+    parser.add_argument(
+        "--server",
+        type=str,
+        default="localhost:50051",
+        help="gRPC server address (default: localhost:50051)",
+    )
 
     args = parser.parse_args()
 
@@ -82,6 +103,7 @@ Examples:
     success = send_command(
         agent_id=args.agent_id,
         command_type=args.command,
+        server_address=args.server,
     )
 
     sys.exit(0 if success else 1)

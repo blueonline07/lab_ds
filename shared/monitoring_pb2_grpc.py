@@ -40,6 +40,11 @@ class MonitoringServiceStub(object):
                 request_serializer=shared_dot_monitoring__pb2.MetricsRequest.SerializeToString,
                 response_deserializer=shared_dot_monitoring__pb2.Command.FromString,
                 _registered_method=True)
+        self.SendCommand = channel.unary_unary(
+                '/monitoring.MonitoringService/SendCommand',
+                request_serializer=shared_dot_monitoring__pb2.Command.SerializeToString,
+                response_deserializer=shared_dot_monitoring__pb2.CommandResponse.FromString,
+                _registered_method=True)
 
 
 class MonitoringServiceServicer(object):
@@ -53,6 +58,13 @@ class MonitoringServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def SendCommand(self, request, context):
+        """Send command to an agent (from external clients)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_MonitoringServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -60,6 +72,11 @@ def add_MonitoringServiceServicer_to_server(servicer, server):
                     servicer.StreamMetrics,
                     request_deserializer=shared_dot_monitoring__pb2.MetricsRequest.FromString,
                     response_serializer=shared_dot_monitoring__pb2.Command.SerializeToString,
+            ),
+            'SendCommand': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendCommand,
+                    request_deserializer=shared_dot_monitoring__pb2.Command.FromString,
+                    response_serializer=shared_dot_monitoring__pb2.CommandResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -90,6 +107,33 @@ class MonitoringService(object):
             '/monitoring.MonitoringService/StreamMetrics',
             shared_dot_monitoring__pb2.MetricsRequest.SerializeToString,
             shared_dot_monitoring__pb2.Command.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SendCommand(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/monitoring.MonitoringService/SendCommand',
+            shared_dot_monitoring__pb2.Command.SerializeToString,
+            shared_dot_monitoring__pb2.CommandResponse.FromString,
             options,
             channel_credentials,
             insecure,

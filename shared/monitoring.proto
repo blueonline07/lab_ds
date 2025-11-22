@@ -6,6 +6,9 @@ package monitoring;
 service MonitoringService {
     // Bidirectional streaming: Agent sends metrics, receives commands
     rpc StreamMetrics(stream MetricsRequest) returns (stream Command);
+    
+    // Send command to an agent (from external clients)
+    rpc SendCommand(Command) returns (CommandResponse);
 }
 
 // ============================================================================
@@ -44,6 +47,12 @@ enum CommandType {
 message Command {
     string agent_id = 1;  // Target agent ID
     CommandType type = 2;  // Command type
+}
+
+// Response to command send request
+message CommandResponse {
+    bool success = 1;  // Whether command was queued successfully
+    string message = 2;  // Response message
 }
 
 
