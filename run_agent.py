@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Entry point for running the monitoring agent
+Entry point for running the mock agent
 """
 
 if __name__ == "__main__":
-    from agent.agent import main
-    main()
+    from mock_agent import main
 
+    main()
