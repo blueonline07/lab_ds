@@ -4,7 +4,6 @@ gRPC Server - Receives monitoring data from agents and forwards to Kafka (with s
 
 import grpc
 from concurrent import futures
-import threading
 import queue
 from typing import Dict
 
@@ -115,28 +114,26 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
     def SendCommand(self, request, context):
         """
         Send a command to an agent (called by external clients)
-        
+
         Args:
             request: Command message
             context: gRPC context
-            
+
         Returns:
             CommandResponse indicating success or failure
         """
         agent_id = request.agent_id
         command_type = request.type
-        
+
         success = self.send_command_to_agent(agent_id, command_type)
-        
+
         if success:
             return monitoring_pb2.CommandResponse(
-                success=True,
-                message=f"Command queued for agent {agent_id}"
+                success=True, message=f"Command queued for agent {agent_id}"
             )
         else:
             return monitoring_pb2.CommandResponse(
-                success=False,
-                message=f"Agent {agent_id} not connected"
+                success=False, message=f"Agent {agent_id} not connected"
             )
 
     def send_command_to_agent(self, agent_id: str, command_type: int) -> bool:

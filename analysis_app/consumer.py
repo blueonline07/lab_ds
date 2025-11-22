@@ -6,7 +6,7 @@ from confluent_kafka import Consumer
 import socket
 import json
 
-from shared.kafka_schemas import KafkaTopics
+from shared.config import KafkaTopics
 
 
 class AnalysisApp:
