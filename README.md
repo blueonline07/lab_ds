@@ -380,9 +380,21 @@ The agent logs show:
 ## 🛠️ Development
 
 ### Generate gRPC Code
+
+To generate the Python protobuf files from the `.proto` definition, use the provided script:
+
+```bash
+./generate_protobuf.sh
+```
+
+Or manually run:
 ```bash
 python3 -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. shared/monitoring.proto
 ```
+
+This will generate:
+- `shared/monitoring_pb2.py` - Message classes
+- `shared/monitoring_pb2_grpc.py` - gRPC service classes
 
 ### Project Structure
 - **agent/**: Modular agent with collect, grpc, and plugins modules
