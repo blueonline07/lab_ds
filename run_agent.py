@@ -13,30 +13,34 @@ def main():
         "--server", type=str, default="localhost:50051", help="gRPC server address"
     )
     parser.add_argument(
-        "--interval", type=int, default=5, help="Metrics collection interval (seconds)"
+        "--etcd-host",
+        type=str,
+        default="localhost",
+        help="etcd server hostname (default: localhost)",
     )
-    
+    parser.add_argument(
+        "--etcd-port",
+        type=int,
+        default=2379,
+        help="etcd server port (default: 2379)",
+    )
+    parser.add_argument(
+        "--config-key",
+        type=str,
+        default=None,
+        help="Custom etcd config key (default: /monitor/config/<hostname>)",
+    )
+
     args = parser.parse_args()
-    
-    # Configuration - should be loaded from etcd in production
-    # Format matches the specification from the lab document
-    config = {
-        "interval": args.interval,
-        "metrics": [
-            "cpu",
-            "memory",
-            "disk read",
-            "disk write",
-            "net in",
-            "net out",
-        ],
-        "plugins": [
-            "agent.plugins.deduplication.DeduplicationPlugin",
-        ],
-    }
-    
-    # Create and run agent
-    agent = MonitoringAgent(args.agent_id, args.server, config)
+
+    # Create and run agent with etcd configuration
+    agent = MonitoringAgent(
+        agent_id=args.agent_id,
+        server_address=args.server,
+        etcd_host=args.etcd_host,
+        etcd_port=args.etcd_port,
+        config_key=args.config_key,
+    )
     agent.initialize()
     agent.run()
 

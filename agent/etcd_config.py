@@ -1,0 +1,155 @@
+"""
+etcd Configuration Manager - handles reading and watching configuration from etcd
+"""
+
+import json
+import threading
+from typing import Dict, Any, Optional
+import etcd3
+
+
+class EtcdConfigManager:
+    """Manages configuration from etcd with real-time updates and thread-safe access"""
+
+    def __init__(
+        self,
+        agent_id: str,
+        etcd_host: str = "localhost",
+        etcd_port: int = 2379,
+        config_key: Optional[str] = None,
+    ):
+        """
+        Initialize etcd configuration manager
+
+        Args:
+            agent_id: Agent identifier for config key
+            etcd_host: etcd server hostname
+            etcd_port: etcd server port
+            config_key: Full config key path (if None, uses /monitor/config/<agent_id>)
+        """
+        self.etcd_host = etcd_host
+        self.etcd_port = etcd_port
+        self.agent_id = agent_id
+
+        # Default config key format: /monitor/config/<agent_id>
+        self.config_key = config_key or f"/monitor/config/{agent_id}"
+
+        # Thread-safe configuration storage
+        self._config: Dict[str, Any] = {}
+        self._config_lock = threading.RLock()  # Reader-writer lock for config access
+        self._watch_id = None
+
+        # Initialize etcd client
+        self.etcd = etcd3.client(host=etcd_host, port=etcd_port)
+
+    def get_config(self) -> Dict[str, Any]:
+        """
+        Get current configuration (thread-safe)
+
+        Returns:
+            Current configuration dictionary
+        """
+        with self._config_lock:
+            return self._config.copy()
+
+    def _update_config(self, new_config: Dict[str, Any]):
+        """
+        Update configuration (thread-safe, internal use)
+
+        Args:
+            new_config: New configuration dictionary
+        """
+        with self._config_lock:
+            self._config = new_config.copy()
+
+    def load_initial_config(self) -> Dict[str, Any]:
+        """
+        Load initial configuration from etcd
+
+        Returns:
+            Configuration dictionary
+        """
+        try:
+            value, _ = self.etcd.get(self.config_key)
+            if value:
+                config = json.loads(value.decode("utf-8"))
+                self._update_config(config)
+                print(f"✓ Loaded initial config from etcd: {self.config_key}")
+                return config
+            else:
+                print(f"⚠ No config found at {self.config_key}, using defaults")
+                default_config = self._get_default_config()
+                self._update_config(default_config)
+                return default_config
+        except Exception as e:
+            print(f"✗ Error loading config from etcd: {e}")
+            default_config = self._get_default_config()
+            self._update_config(default_config)
+            return default_config
+
+    def _get_default_config(self) -> Dict[str, Any]:
+        """
+        Get default configuration
+
+        Returns:
+            Default configuration dictionary
+        """
+        return {
+            "interval": 5,
+            "metrics": [
+                "cpu",
+                "memory",
+                "disk read",
+                "disk write",
+                "net in",
+                "net out",
+            ],
+            "plugins": [],
+        }
+
+    def _watch_config_callback(self, watch_response):
+        """
+        Callback for etcd watch events
+
+        Args:
+            watch_response: etcd watch response
+        """
+        for event in watch_response.events:
+            if isinstance(event, etcd3.events.PutEvent):
+                try:
+                    new_config = json.loads(event.value.decode("utf-8"))
+                    self._update_config(new_config)
+                    print(f"✓ Config updated from etcd: {self.config_key}")
+                    print(f"  New config: {new_config}")
+                except Exception as e:
+                    print(f"✗ Error parsing config update: {e}")
+            elif isinstance(event, etcd3.events.DeleteEvent):
+                print(f"⚠ Config deleted from etcd: {self.config_key}, using defaults")
+                self._update_config(self._get_default_config())
+
+    def start_watching(self):
+        """Start watching for configuration changes in etcd"""
+        try:
+            self._watch_id = self.etcd.add_watch_callback(
+                self.config_key, self._watch_config_callback
+            )
+            print(f"✓ Started watching config key: {self.config_key}")
+        except Exception as e:
+            print(f"✗ Error starting config watch: {e}")
+
+    def stop_watching(self):
+        """Stop watching for configuration changes"""
+        if self._watch_id is not None:
+            try:
+                self.etcd.cancel_watch(self._watch_id)
+                print("✓ Stopped watching config")
+            except Exception as e:
+                print(f"✗ Error stopping config watch: {e}")
+            finally:
+                self._watch_id = None
+
+    def close(self):
+        """Close etcd connection and cleanup"""
+        self.stop_watching()
+        # etcd3 client doesn't have an explicit close method, but we can clear references
+        self.etcd = None

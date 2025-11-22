@@ -1,8 +1,10 @@
 """
 Collect module - handles metric collection from localhost
 """
+
 import socket
 import random
+import threading
 from typing import Dict, Any, List
 from datetime import datetime
 from shared import monitoring_pb2
@@ -10,38 +12,52 @@ from shared import monitoring_pb2
 
 class MetricCollector:
     """Collects system metrics from localhost"""
-    
+
     def __init__(self, agent_id: str, active_metrics: List[str]):
         """
         Initialize metric collector
-        
+
         Args:
             agent_id: Unique identifier for this agent
             active_metrics: List of metric names to collect (supports both "disk read" and "disk_read" formats)
         """
         self.agent_id = agent_id
         self.hostname = socket.gethostname()
+        self._active_metrics_lock = threading.Lock()
         self.active_metrics = active_metrics
-    
+
+    def update_metrics(self, new_metrics: List[str]):
+        """
+        Update active metrics list (thread-safe)
+
+        Args:
+            new_metrics: New list of metric names to collect
+        """
+        with self._active_metrics_lock:
+            self.active_metrics = new_metrics.copy()
+
     def _is_metric_active(self, metric_name: str) -> bool:
         """
         Check if a metric is active, handling both space and underscore formats
-        
+
         Args:
             metric_name: Metric name to check (e.g., "cpu", "disk_read", "disk read")
-            
+
         Returns:
             True if metric is active
         """
-        # Normalize metric names: replace underscores with spaces for comparison
-        normalized_active = [m.replace("_", " ") for m in self.active_metrics]
-        normalized_name = metric_name.replace("_", " ")
-        return normalized_name in normalized_active or metric_name in self.active_metrics
-    
+        with self._active_metrics_lock:
+            # Normalize metric names: replace underscores with spaces for comparison
+            normalized_active = [m.replace("_", " ") for m in self.active_metrics]
+            normalized_name = metric_name.replace("_", " ")
+            return (
+                normalized_name in normalized_active or metric_name in self.active_metrics
+            )
+
     def collect_metrics(self) -> Dict[str, Any]:
         """
         Collect system metrics from localhost
-        
+
         Returns:
             Dictionary containing collected metrics
         """
@@ -59,7 +75,9 @@ class MetricCollector:
             ),
             "memory_total_mb": 8192.0,
             "disk_read_mb": (
-                random.uniform(5.0, 50.0) if self._is_metric_active("disk_read") else 0.0
+                random.uniform(5.0, 50.0)
+                if self._is_metric_active("disk_read")
+                else 0.0
             ),
             "disk_write_mb": (
                 random.uniform(2.0, 30.0)
@@ -73,16 +91,18 @@ class MetricCollector:
                 random.uniform(0.5, 15.0) if self._is_metric_active("net_out") else 0.0
             ),
         }
-        
+
         return all_metrics
-    
-    def create_metrics_request(self, metrics: Dict[str, Any]) -> monitoring_pb2.MetricsRequest:
+
+    def create_metrics_request(
+        self, metrics: Dict[str, Any]
+    ) -> monitoring_pb2.MetricsRequest:
         """
         Create a MetricsRequest protobuf message from collected metrics
-        
+
         Args:
             metrics: Dictionary of collected metrics
-            
+
         Returns:
             MetricsRequest protobuf message
         """
@@ -101,4 +121,3 @@ class MetricCollector:
             ),
             metadata={},
         )
-
