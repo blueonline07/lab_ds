@@ -110,7 +110,19 @@ class EtcdConfigManager:
                 "net in",
                 "net out",
             ],
-            "plugins": ["agent.plugins.deduplication.DeduplicationPlugin"],
+            "plugins": [
+                "agent.plugins.deduplication.DeduplicationPlugin",
+                "agent.plugins.threshold_alert.ThresholdAlertPlugin",
+                "agent.plugins.filter.FilterPlugin",
+                # "agent.plugins.aggregation.AggregationPlugin",  # Disabled by default - blocks until 10 samples
+            ],
+            "thresholds": {
+                "cpu_percent": 80.0,
+                "memory_percent": 85.0,
+            },
+            "window_size": 10,
+            "min_cpu": 5.0,
+            "min_memory": 5.0,
         }
 
     def _watch_config_callback(self, watch_response):

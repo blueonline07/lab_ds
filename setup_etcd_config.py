@@ -44,6 +44,9 @@ def setup_config(
     if plugins is None:
         plugins = [
             "agent.plugins.deduplication.DeduplicationPlugin",
+            "agent.plugins.threshold_alert.ThresholdAlertPlugin",
+            "agent.plugins.filter.FilterPlugin",
+            # "agent.plugins.aggregation.AggregationPlugin",  # Disabled - blocks until window_size samples collected
         ]
 
     config_key = f"/monitor/config/{agent_id}"
@@ -51,6 +54,13 @@ def setup_config(
         "interval": interval,
         "metrics": metrics,
         "plugins": plugins,
+        "thresholds": {
+            "cpu_percent": 80.0,
+            "memory_percent": 85.0,
+        },
+        "window_size": 10,
+        "min_cpu": 5.0,
+        "min_memory": 5.0,
     }
 
     try:

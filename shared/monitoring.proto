@@ -46,6 +46,7 @@ enum CommandType {
     UPDATE_CONFIG = 2;   // Update configuration
     RESTART = 3;         // Restart agent
     STATUS = 4;          // Get agent status
+    SHUTDOWN = 5;        // Gracefully shutdown agent
 }
 
 // Command for agent

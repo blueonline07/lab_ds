@@ -88,9 +88,17 @@ class GrpcClient:
             command_thread = threading.Thread(target=receive_commands, daemon=True)
             command_thread.start()
             
-            # Wait for command thread (it runs until stream closes)
-            command_thread.join()
+            # Wait for command thread with timeout to allow interrupts
+            try:
+                while command_thread.is_alive():
+                    command_thread.join(timeout=1.0)  # Check every second
+            except KeyboardInterrupt:
+                print("[DEBUG] Stream interrupted by user")
+                raise
             
+        except KeyboardInterrupt:
+            print("[DEBUG] gRPC stream interrupted")
+            raise
         except Exception as e:
             print(f"[ERROR] Error in gRPC stream: {e}")
             import traceback

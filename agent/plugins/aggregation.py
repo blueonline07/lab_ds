@@ -104,14 +104,15 @@ class AggregationPlugin(BasePlugin):
                     net_in_mb=aggregated.get("net_in_mb_avg", 0.0),
                     net_out_mb=aggregated.get("net_out_mb_avg", 0.0),
                 ),
-                metadata={
-                    "aggregation": f"window={self.window_size}",
-                    "cpu_min": f"{aggregated.get('cpu_percent_min', 0):.2f}",
-                    "cpu_max": f"{aggregated.get('cpu_percent_max', 0):.2f}",
-                    "mem_min": f"{aggregated.get('memory_percent_min', 0):.2f}",
-                    "mem_max": f"{aggregated.get('memory_percent_max', 0):.2f}",
-                },
             )
+            
+            # Add metadata
+            aggregated_request.metadata["aggregation"] = f"window={self.window_size}"
+            aggregated_request.metadata["count"] = str(len(self.history))
+            aggregated_request.metadata["cpu_min"] = f"{aggregated.get('cpu_percent_min', 0):.2f}"
+            aggregated_request.metadata["cpu_max"] = f"{aggregated.get('cpu_percent_max', 0):.2f}"
+            aggregated_request.metadata["mem_min"] = f"{aggregated.get('memory_percent_min', 0):.2f}"
+            aggregated_request.metadata["mem_max"] = f"{aggregated.get('memory_percent_max', 0):.2f}"
             
             # Clear history
             self.history = []

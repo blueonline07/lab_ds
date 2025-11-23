@@ -128,6 +128,7 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
         """
         agent_id = None
         command_queue = queue.Queue()
+        agent_id = None  # Initialize to handle errors before agent_id is set
         
         try:
             # Process first request to get agent_id
@@ -167,10 +168,19 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
                     continue
                     
         except StopIteration:
-            print(f"[DEBUG] Agent {agent_id} closed stream")
+            if agent_id:
+                print(f"[DEBUG] Agent {agent_id} closed stream")
+            else:
+                print(f"[DEBUG] Client disconnected before sending agent_id")
+        except grpc.RpcError as e:
+            # Handle gRPC-specific errors gracefully
+            if agent_id:
+                print(f"[DEBUG] gRPC error for agent {agent_id}: {e.code()}")
+            else:
+                print(f"[DEBUG] Client connection error: {e.code()}")
         except Exception as e:
             import traceback
-            print(f"[ERROR] Stream error for agent {agent_id}: {e}")
+            print(f"[ERROR] Stream error for agent {agent_id if agent_id else 'unknown'}: {e}")
             print(f"Traceback: {traceback.format_exc()}")
         finally:
             # Cleanup: remove agent's command queue

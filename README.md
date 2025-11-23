@@ -148,7 +148,8 @@ Commands supported:
 - `STOP` - Pause metrics collection
 - `START` - Resume metrics collection
 - `UPDATE_CONFIG` - Reload configuration from etcd
-- `RESTART` - Restart agent
+- `RESTART` - Restart agent (pause and resume)
+- `SHUTDOWN` - Terminate agent (like Ctrl+C)
 
 ### 2. Plugin System (4 Plugins)
 
@@ -172,6 +173,162 @@ Configuration updates via etcd are applied in real-time:
 - Interval changes
 - Metric selection
 - Plugin loading/unloading
+
+---
+
+## 🎮 Command System
+
+The system supports **6 remote control commands** that can be sent to any agent via Kafka:
+
+### Command Types
+
+| Command | Description | Effect | Use Case |
+|---------|-------------|--------|----------|
+| **STATUS** | Query agent state | Shows running status, collection state, interval, active metrics | Health checks, debugging |
+| **STOP** | Pause metrics collection | Sets `collecting = False`, agent keeps running | Temporarily reduce load |
+| **START** | Resume metrics collection | Sets `collecting = True`, resumes sending metrics | Resume after STOP |
+| **UPDATE_CONFIG** | Reload configuration | Fetches latest config from etcd, reloads plugins | Apply config changes |
+| **RESTART** | Restart collection cycle | Stops (1s pause) then starts collection | Soft reset |
+| **SHUTDOWN** | Terminate agent | Raises `KeyboardInterrupt`, triggers cleanup and exit | Graceful termination |
+
+### Command Flow
+
+```
+Analysis App                  Kafka                  gRPC Server              Agent
+    │                          │                         │                      │
+    │──send-command────────────►│                         │                      │
+    │   agent-001 SHUTDOWN      │                         │                      │
+    │                           │                         │                      │
+    │                           │◄────poll commands───────┤                      │
+    │                           │                         │                      │
+    │                           │──command message────────►│                      │
+    │                           │   {agent_id: agent-001}  │                      │
+    │                           │                         │                      │
+    │                           │                         │──gRPC stream────────►│
+    │                           │                         │   Command proto      │
+    │                           │                         │                      │
+    │                           │                         │                      ├─execute
+    │                           │                         │                      │  command
+    │                           │                         │                      │
+    │                           │                         │◄─────response────────┤
+    │                           │                         │   (or disconnect)    │
+```
+
+### Command Behavior Details
+
+#### STATUS Command
+```bash
+python run_analysis.py send-command agent-001 STATUS
+```
+**Agent Output:**
+```
+[COMMAND] Executing STATUS
+  Agent ID: agent-001
+  Running: True
+  Collecting: True
+  Interval: 5.0s
+  Active metrics: ['cpu', 'memory', 'disk read', 'disk write', 'net in', 'net out']
+```
+**Effect:** None - read-only query
+
+#### STOP Command
+```bash
+python run_analysis.py send-command agent-001 STOP
+```
+**Agent Output:**
+```
+[COMMAND] Executing STOP - pausing metrics collection
+[DEBUG] Metrics collection paused (STOP command)
+```
+**Effect:** 
+- Sets `self.collecting = False`
+- Agent continues running but stops sending metrics
+- gRPC connection remains active
+- Can be resumed with START
+
+#### START Command
+```bash
+python run_analysis.py send-command agent-001 START
+```
+**Agent Output:**
+```
+[COMMAND] Executing START - resuming metrics collection
+✅ [SENT] cpu=15.2%, mem=83.4%
+```
+**Effect:**
+- Sets `self.collecting = True`
+- Resumes metrics collection and sending
+- Immediately starts collecting at next interval
+
+#### UPDATE_CONFIG Command
+```bash
+python run_analysis.py send-command agent-001 UPDATE_CONFIG
+```
+**Agent Output:**
+```
+[COMMAND] Executing UPDATE_CONFIG - reloading config from etcd
+🔄 Applying config update for agent agent-001...
+📦 Unloading 2 plugins...
+📦 Loading plugins...
+✅ Active plugins (3):
+   1. DeduplicationPlugin
+   2. ThresholdAlertPlugin
+   3. FilterPlugin
+```
+**Effect:**
+- Fetches latest config from etcd
+- Unloads current plugins
+- Reloads plugins based on new config
+- Updates interval and active metrics
+
+#### RESTART Command
+```bash
+python run_analysis.py send-command agent-001 RESTART
+```
+**Agent Output:**
+```
+[COMMAND] Executing RESTART - restarting agent
+[COMMAND] Executing STOP - pausing metrics collection
+[DEBUG] Metrics collection paused (STOP command)
+(1 second pause)
+[COMMAND] Executing START - resuming metrics collection
+✅ [SENT] cpu=12.3%, mem=82.1%
+```
+**Effect:**
+- Pauses collection (`collecting = False`)
+- Waits 1 second
+- Resumes collection (`collecting = True`)
+- Soft reset without reconnecting
+
+#### SHUTDOWN Command
+```bash
+python run_analysis.py send-command agent-001 SHUTDOWN
+```
+**Agent Output:**
+```
+[COMMAND] Executing SHUTDOWN - terminating agent (like Ctrl+C)
+💤 Shutdown requested by server
+
+Shutting down agent...
+✓ Agent agent-001 finalized
+```
+**Effect:**
+- Raises `KeyboardInterrupt` exception
+- Triggers cleanup in `finalize()`:
+  - Stops etcd config watcher
+  - Finalizes all plugins
+  - Disconnects from gRPC server
+  - Closes etcd connection
+- **Agent process exits completely**
+- **Identical behavior to pressing Ctrl+C**
+
+**When to use:**
+- Graceful shutdown from remote control
+- Automated deployment/restart workflows
+- Cluster management scripts
+- Emergency shutdown
+
+**Note:** After SHUTDOWN, the agent must be manually restarted with `python run_agent.py --agent-id agent-001`
 
 ---
 
@@ -204,17 +361,20 @@ python run_agent.py --agent-id <agent-id>
 # Get agent status
 python run_analysis.py send-command agent-001 STATUS
 
-# Stop metrics collection
+# Stop metrics collection (pause collection, agent keeps running)
 python run_analysis.py send-command agent-001 STOP
 
 # Resume metrics collection
 python run_analysis.py send-command agent-001 START
 
-# Reload configuration
+# Reload configuration from etcd
 python run_analysis.py send-command agent-001 UPDATE_CONFIG
 
-# Restart agent
+# Restart agent (pause + resume)
 python run_analysis.py send-command agent-001 RESTART
+
+# Shutdown agent (terminate like Ctrl+C)
+python run_analysis.py send-command agent-001 SHUTDOWN
 ```
 
 ### Multiple Agents
@@ -411,11 +571,13 @@ message Command {
         START = 2;
         UPDATE_CONFIG = 3;
         RESTART = 4;
+        SHUTDOWN = 5;  // Graceful termination
     }
     string command_id = 1;
     string agent_id = 2;
     CommandType type = 3;
     int64 timestamp = 4;
+    map<string, string> params = 5;  // Optional parameters
 }
 ```
 
@@ -515,11 +677,14 @@ python run_agent.py --agent-id agent-001
 # Get status
 python run_analysis.py send-command agent-001 STATUS
 
-# Stop collection
+# Stop collection (pause, agent keeps running)
 python run_analysis.py send-command agent-001 STOP
 
-# Start collection
+# Start collection (resume)
 python run_analysis.py send-command agent-001 START
+
+# Shutdown agent (graceful termination, like Ctrl+C)
+python run_analysis.py send-command agent-001 SHUTDOWN
 ```
 
 ### Example 3: Multiple Agents with Plugins
@@ -540,11 +705,12 @@ python run_analysis.py get-metrics
 | Component | Status | Description |
 |-----------|--------|-------------|
 | **gRPC (Bidirectional)** | ✅ Working | Agent ↔ Server streaming |
-| **Command Flow** | ✅ Working | 5 commands implemented |
+| **Command Flow** | ✅ Working | 6 commands implemented (STATUS, STOP, START, UPDATE_CONFIG, RESTART, SHUTDOWN) |
 | **Real Metrics** | ✅ Working | psutil-based collection |
 | **Plugin System** | ✅ Working | 4 plugins implemented |
 | **Dynamic Config** | ✅ Working | etcd-based updates |
 | **Kafka Streaming** | ✅ Working | 4 topics operational |
+| **Remote Shutdown** | ✅ Working | Graceful termination via SHUTDOWN command |
 | **Tests** | ✅ Passing | 100% coverage |
 
 ---

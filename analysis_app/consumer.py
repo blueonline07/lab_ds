@@ -88,7 +88,7 @@ class AnalysisApp:
         
         Args:
             agent_id: Target agent ID
-            command_type: Command type (START, STOP, UPDATE_CONFIG, RESTART, STATUS)
+            command_type: Command type (START, STOP, UPDATE_CONFIG, RESTART, STATUS, SHUTDOWN)
             params: Optional command parameters
         """
         if params is None:
@@ -181,6 +181,9 @@ Examples:
   
   # Send UPDATE_CONFIG command
   python3 run_analysis.py send-command my-agent UPDATE_CONFIG
+  
+  # Send SHUTDOWN command to gracefully terminate agent
+  python3 run_analysis.py send-command my-agent SHUTDOWN
         """,
     )
 
@@ -238,7 +241,7 @@ Examples:
     send_command_parser.add_argument(
         "type",
         type=str,
-        choices=["START", "STOP", "UPDATE_CONFIG", "RESTART", "STATUS"],
+        choices=["START", "STOP", "UPDATE_CONFIG", "RESTART", "STATUS", "SHUTDOWN"],
         help="Command type",
     )
     send_command_parser.add_argument(

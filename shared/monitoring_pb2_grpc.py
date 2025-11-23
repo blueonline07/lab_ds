@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from . import monitoring_pb2 as monitoring__pb2
+from shared import monitoring_pb2 as shared_dot_monitoring__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in monitoring_pb2_grpc.py depends on'
+        + ' but the generated code in shared/monitoring_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -37,13 +37,13 @@ class MonitoringServiceStub(object):
         """
         self.StreamMetrics = channel.stream_stream(
                 '/monitoring.MonitoringService/StreamMetrics',
-                request_serializer=monitoring__pb2.MetricsRequest.SerializeToString,
-                response_deserializer=monitoring__pb2.Command.FromString,
+                request_serializer=shared_dot_monitoring__pb2.MetricsRequest.SerializeToString,
+                response_deserializer=shared_dot_monitoring__pb2.Command.FromString,
                 _registered_method=True)
         self.SendCommand = channel.unary_unary(
                 '/monitoring.MonitoringService/SendCommand',
-                request_serializer=monitoring__pb2.Command.SerializeToString,
-                response_deserializer=monitoring__pb2.CommandResponse.FromString,
+                request_serializer=shared_dot_monitoring__pb2.Command.SerializeToString,
+                response_deserializer=shared_dot_monitoring__pb2.CommandResponse.FromString,
                 _registered_method=True)
 
 
@@ -70,13 +70,13 @@ def add_MonitoringServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'StreamMetrics': grpc.stream_stream_rpc_method_handler(
                     servicer.StreamMetrics,
-                    request_deserializer=monitoring__pb2.MetricsRequest.FromString,
-                    response_serializer=monitoring__pb2.Command.SerializeToString,
+                    request_deserializer=shared_dot_monitoring__pb2.MetricsRequest.FromString,
+                    response_serializer=shared_dot_monitoring__pb2.Command.SerializeToString,
             ),
             'SendCommand': grpc.unary_unary_rpc_method_handler(
                     servicer.SendCommand,
-                    request_deserializer=monitoring__pb2.Command.FromString,
-                    response_serializer=monitoring__pb2.CommandResponse.SerializeToString,
+                    request_deserializer=shared_dot_monitoring__pb2.Command.FromString,
+                    response_serializer=shared_dot_monitoring__pb2.CommandResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -105,8 +105,8 @@ class MonitoringService(object):
             request_iterator,
             target,
             '/monitoring.MonitoringService/StreamMetrics',
-            monitoring__pb2.MetricsRequest.SerializeToString,
-            monitoring__pb2.Command.FromString,
+            shared_dot_monitoring__pb2.MetricsRequest.SerializeToString,
+            shared_dot_monitoring__pb2.Command.FromString,
             options,
             channel_credentials,
             insecure,
@@ -132,8 +132,8 @@ class MonitoringService(object):
             request,
             target,
             '/monitoring.MonitoringService/SendCommand',
-            monitoring__pb2.Command.SerializeToString,
-            monitoring__pb2.CommandResponse.FromString,
+            shared_dot_monitoring__pb2.Command.SerializeToString,
+            shared_dot_monitoring__pb2.CommandResponse.FromString,
             options,
             channel_credentials,
             insecure,
