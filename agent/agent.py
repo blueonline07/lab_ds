@@ -1,5 +1,5 @@
 """
-Monitoring Agent - Modular architecture with collect, grpc, and plugins
+Monitoring Agent - Modular architecture with bidirectional command support
 """
 
 import os
@@ -15,7 +15,7 @@ from agent.etcd_config import EtcdConfigManager
 
 
 class MonitoringAgent:
-    """Main monitoring agent with modular architecture"""
+    """Main monitoring agent with bidirectional command support"""
 
     def __init__(
         self,
@@ -64,6 +64,9 @@ class MonitoringAgent:
         self.plugin_manager = PluginManager(initial_config)
 
         self.running = False
+        self.collecting = (
+            True  # Control metrics collection (can be paused by STOP command)
+        )
 
     @property
     def interval(self) -> float:
@@ -101,21 +104,87 @@ class MonitoringAgent:
         self.plugin_manager.load_plugins(new_config)
         print(f"✓ Config update applied")
 
+    def _handle_command(self, command: monitoring_pb2.Command):
+        """
+        Handle incoming commands from server
+
+        Args:
+            command: Command protobuf message
+        """
+        print(
+            f"[COMMAND] Received: agent_id={command.agent_id}, type={command.type}, params={dict(command.params)}"
+        )
+
+        command_type = monitoring_pb2.CommandType.Name(command.type)
+
+        if command_type == "START":
+            if self.collecting:
+                print("[COMMAND] Executing START - already collecting")
+            else:
+                print("[COMMAND] Executing START - resuming metrics collection")
+                self.collecting = True
+                print("▶️  Collection resumed")
+
+        elif command_type == "STOP":
+            if not self.collecting:
+                print("[COMMAND] Executing STOP - already stopped")
+            else:
+                print("[COMMAND] Executing STOP - pausing metrics collection")
+                self.collecting = False
+                print("⏸️  Collection paused")
+
+        elif command_type == "UPDATE_CONFIG":
+            print("[COMMAND] Executing UPDATE_CONFIG - reloading config from etcd")
+            new_config = self.etcd_config.get_config()
+            self._on_config_update(new_config)
+
+        elif command_type == "RESTART":
+            print("[COMMAND] Executing RESTART - restarting agent")
+            # Could implement full restart logic here
+            self.collecting = False
+            time.sleep(1)
+            self.collecting = True
+
+        elif command_type == "STATUS":
+            print(f"[COMMAND] Executing STATUS")
+            print(f"  Agent ID: {self.agent_id}")
+            print(f"  Running: {self.running}")
+            print(f"  Collecting: {self.collecting}")
+            print(f"  Interval: {self.interval}s")
+            print(f"  Active metrics: {self.active_metrics}")
+
+        elif command_type == "SHUTDOWN":
+            print(f"[COMMAND] Executing SHUTDOWN - terminating agent (like Ctrl+C)")
+            print(f"💤 Shutdown requested by server")
+            # Raise KeyboardInterrupt to behave exactly like Ctrl+C
+            raise KeyboardInterrupt("SHUTDOWN command received")
+
+        else:
+            print(f"[COMMAND] Unknown command type: {command_type}")
+
     def initialize(self):
         """Initialize agent and all modules"""
-        print(f"Initializing agent {self.agent_id}...")
+        print(f"\n{'='*60}")
+        print(f"🚀 Initializing agent {self.agent_id}...")
+        print(f"{'='*60}")
 
         # Load plugins with initial config
         initial_config = self.etcd_config.get_config()
+        print(f"\n📦 Loading plugins...")
         self.plugin_manager.load_plugins(initial_config)
+
+        # Show loaded plugins
+        if self.plugin_manager.plugins:
+            print(f"\n✅ Active plugins ({len(self.plugin_manager.plugins)}):")
+            for i, plugin in enumerate(self.plugin_manager.plugins, 1):
+                print(f"   {i}. {plugin.__class__.__name__}")
+        else:
+            print(f"\n⚠️  No plugins loaded (all metrics will be sent)")
 
         # Start watching for config changes
         self.etcd_config.start_watching()
 
         # Set up config update callback
-        # Note: The etcd watch callback already updates the config manager's internal state
-        # We'll check for config changes in the main loop or use a separate thread
-        # For simplicity, we'll use a thread to monitor config changes
         def config_monitor():
             last_config = None
             while self.running:
@@ -126,14 +195,25 @@ class MonitoringAgent:
                     last_config = current_config.copy()
                 time.sleep(1)  # Check every second
 
-        self._config_monitor_thread = threading.Thread(target=config_monitor, daemon=True)
+        self._config_monitor_thread = threading.Thread(
+            target=config_monitor, daemon=True
+        )
 
         # Connect to gRPC server
         self.grpc_client.connect()
 
+        # Register command handler
+        self.grpc_client.set_command_handler(self._handle_command)
+
         self.running = True
         self._config_monitor_thread.start()
-        print(f"✓ Agent {self.agent_id} initialized")
+        print(f"\n✅ Agent {self.agent_id} initialized and ready!")
+        print(f"{'='*60}\n")
+        print(f"📊 Watch for:")
+        print(f"   ✅ [SENT] = Metrics sent to server")
+        print(f"   🔴 [DROPPED] = Metrics filtered by plugins")
+        print(f"   📊 [PLUGIN STATS] = Summary every 10 iterations")
+        print(f"{'='*60}\n")
 
     def metrics_generator(self) -> Iterator[monitoring_pb2.MetricsRequest]:
         """
@@ -142,24 +222,72 @@ class MonitoringAgent:
         Yields:
             MetricsRequest messages
         """
+        iteration = 0
+        was_paused = False  # Track pause state to avoid repeated messages
+        total_processed = 0
+        total_sent = 0
+        total_dropped = 0
+        
         while self.running:
-            # Collect metrics
-            metrics = self.collector.collect_metrics()
-            metrics_request = self.collector.create_metrics_request(metrics)
+            # Only collect and send if collecting is enabled
+            if self.collecting:
+                # Reset pause flag when resuming
+                if was_paused:
+                    was_paused = False
+                
+                iteration += 1
 
-            # Process through plugins
-            processed_request = self.plugin_manager.process_metrics(metrics_request)
+                # Collect metrics
+                metrics = self.collector.collect_metrics()
+                metrics_request = self.collector.create_metrics_request(metrics)
 
-            # Only yield if not dropped by plugins
-            if processed_request is not None:
-                yield processed_request
+                # Process through plugins
+                processed_request = self.plugin_manager.process_metrics(metrics_request)
+                
+                # Track metrics at agent level (not plugin level)
+                total_processed += 1
 
-            time.sleep(self.interval)
+                # Only yield if not dropped by plugins
+                if processed_request is not None:
+                    total_sent += 1
+                    print(
+                        f"✅ [SENT] cpu={metrics['cpu_percent']:.1f}%, mem={metrics['memory_percent']:.1f}%"
+                    )
+                    yield processed_request
+                else:
+                    total_dropped += 1
+                    print(
+                        f"🔴 [DROPPED] cpu={metrics['cpu_percent']:.1f}%, mem={metrics['memory_percent']:.1f}%"
+                    )
+
+                # Show stats every 10 iterations (every ~50 seconds with 5s interval)
+                if iteration % 10 == 0:
+                    reduction = (
+                        (total_dropped / total_processed * 100)
+                        if total_processed > 0
+                        else 0
+                    )
+                    print(
+                        f"\n📊 [PLUGIN STATS] Processed: {total_processed}, "
+                        f"Sent: {total_sent}, Dropped: {total_dropped} "
+                        f"({reduction:.1f}% reduction)\n"
+                    )
+            else:
+                # Only print pause message once when state changes
+                if not was_paused:
+                    print("⏸️  [PAUSED] Metrics collection stopped (STOP command)")
+                    was_paused = True
+
+            # Interruptible sleep - check every 0.5s to allow quick Ctrl+C response
+            sleep_time = self.interval
+            while sleep_time > 0 and self.running:
+                time.sleep(min(0.5, sleep_time))
+                sleep_time -= 0.5
 
     def run(self):
         """Run the agent - main execution loop"""
         try:
-            # Stream metrics to server
+            # Stream metrics to server (bidirectional)
             self.grpc_client.stream_metrics(metrics_generator=self.metrics_generator())
         except KeyboardInterrupt:
             print("\nShutting down agent...")
