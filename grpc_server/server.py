@@ -8,9 +8,10 @@ import grpc
 import uuid
 import socket
 import threading
+import json
 from concurrent import futures
 
-from shared import monitoring_pb2, monitoring_pb2_grpc
+from shared import monitoring_pb2, monitoring_pb2_grpc, Config
 from confluent_kafka import Producer, Consumer
 
 
@@ -42,10 +43,26 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
         def process_requests():
             try:
                 for request in request_iterator:
-                    print(request)
+                    self.producer.produce(
+                        Config.MONITORING_TOPIC,
+                        key=request.agent_id.encode("utf-8"),
+                        value=json.dumps({
+                            "agent_id": request.agent_id,
+                            "timestamp": request.timestamp,
+                            "metrics": {
+                                "cpu_percent": request.metrics.cpu_percent,
+                                "memory_percent": request.metrics.memory_percent,
+                                "memory_used_mb": request.metrics.memory_used_mb,
+                                "memory_total_mb": request.metrics.memory_total_mb,
+                                "disk_read_mb": request.metrics.disk_read_mb,
+                                "disk_write_mb": request.metrics.disk_write_mb,
+                                "net_in_mb": request.metrics.net_in_mb,
+                                "net_out_mb": request.metrics.net_out_mb,
+                            },
+                            "metadata": dict(request.metadata),
+                        }).encode("utf-8"),
+                    )
                     self.producer.flush()
-                    
-                    print(f"Received metrics from agent {request.agent_id}")
                     
             except Exception as e:
                 print(f"Error processing requests: {e}")

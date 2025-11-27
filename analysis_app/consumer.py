@@ -2,16 +2,12 @@
 Analysis Application - CLI tool to read metrics from Kafka
 """
 
-import os
+
 from confluent_kafka import Consumer
 import socket
 import time
 import json
-import dotenv
-dotenv.load_dotenv()
-
-from shared.config import KafkaTopics
-
+from shared import Config
 
 class AnalysisApp:
     """Analysis application: reads metrics from Kafka"""
@@ -34,7 +30,7 @@ class AnalysisApp:
                 "client.id": socket.gethostname(),
             }
         )
-        self.consumer.subscribe([KafkaTopics.MONITORING_DATA])
+        self.consumer.subscribe([Config.MONITORING_TOPIC])
 
     def display_metrics(self, data: dict):
         """Display metrics to stdout"""
@@ -99,7 +95,7 @@ Examples:
     parser.add_argument(
         "--kafka",
         type=str,
-        default=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+        default=Config.KAFKA_BOOTSTRAP_SERVER,
         help="Kafka bootstrap servers (default: KAFKA_BOOTSTRAP_SERVERS env var or localhost:9092)",
     )
     parser.add_argument(
