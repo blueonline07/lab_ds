@@ -3,31 +3,25 @@ Analysis Application - CLI tool to read metrics from Kafka
 """
 
 
-from confluent_kafka import Consumer
-import socket
+from confluent_kafka import Consumer, Producer
 import time
 import json
-from shared import Config
+from shared import Config, monitoring_pb2
 
 class AnalysisApp:
     """Analysis application: reads metrics from Kafka"""
 
-    def __init__(
-        self,
-        bootstrap_servers: str = None,
-        group_id: str = "analysis-app-group",
-    ):
-        if bootstrap_servers is None:
-            bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-        self.bootstrap_servers = bootstrap_servers
-        self.group_id = group_id
+    def __init__(self):
         self.consumer = Consumer(
             {
-                "bootstrap.servers": bootstrap_servers,
-                "security.protocol": "PLAINTEXT",
-                "group.id": group_id,
-                "auto.offset.reset": "earliest",
-                "client.id": socket.gethostname(),
+                "bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER,
+                "group.id": Config.KAFKA_GROUP_ID,
+                'auto.offset.reset': 'smallest'
+            }
+        )
+        self.producer = Producer(
+            {
+                "bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER
             }
         )
         self.consumer.subscribe([Config.MONITORING_TOPIC])
@@ -70,6 +64,19 @@ class AnalysisApp:
                 print(f"\n✓ Retrieved {count} metric(s)")
         finally:
             self.consumer.close()
+
+    def send_command(self, agent_id: str, content: str):
+        
+        self.producer.produce(
+            Config.COMMAND_TOPIC,
+            key=agent_id,
+            value=json.dumps({
+                "agent_id": agent_id,
+                "content": content,
+                "timestamp": int(time.time())
+            })
+        )
+        self.producer.flush()
 
 
 def main():
@@ -114,22 +121,37 @@ Examples:
         "get-metrics",
         help="Get all metrics from Kafka and display to stdout",
     )
+
+    send_command_parser = subparsers.add_parser(
+        "send-command",
+        help="send command to agent"
+    )
+
     get_metrics_parser.add_argument(
         "--timeout",
         type=float,
         default=5.0,
         help="Maximum time to wait for messages in seconds (default: 5.0)",
     )
-
+    send_command_parser.add_argument(
+        "--agent-id",
+        type=str,
+        required=True
+    )
+    send_command_parser.add_argument(
+        "--content",
+        type=str,
+        default=""
+    )
+    
     args = parser.parse_args()
 
-    app = AnalysisApp(
-        bootstrap_servers=args.kafka,
-        group_id=args.group_id,
-    )
+    app = AnalysisApp()
 
     if args.command == "get-metrics":
         app.get_all_metrics(timeout=args.timeout)
+    if args.command == "send-command":
+        app.send_command(agent_id=args.agent_id, content=args.content)
     return 0
 
 

@@ -6,7 +6,6 @@ gRPC Server - Broker between Agents and Kafka
 
 import grpc
 import uuid
-import socket
 import threading
 import json
 from concurrent import futures
@@ -30,6 +29,7 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
         """
         self.producer = kafka_producer
         self.consumer = kafka_consumer
+        self.consumer.subscribe([Config.COMMAND_TOPIC])
         self.agents = {}
         self.lock = threading.Lock()
 
@@ -72,11 +72,13 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
         
         try:
             while context.is_active():
-                message = self.consumer.poll(timeout=1.0)
-                if message is not None and not message.error():
-                    # Process message and yield command
-                    yield monitoring_pb2.CommandResponse(
-                        command=message.value().decode('utf-8')
+                msg = self.consumer.poll(timeout=1.0)
+                if msg is not None and not msg.error():
+                    cmd = json.loads(msg.value())
+                    yield monitoring_pb2.Command(
+                        agent_id = cmd["agent_id"],
+                        content = cmd["content"],
+                        timestamp = cmd["timestamp"]
                     )
         except Exception as e:
             print(f"Error in response stream: {e}")
@@ -100,14 +102,12 @@ def serve(
     global _server_servicer
 
     kafka_producer = Producer({
-        "bootstrap.servers": bootstrap_servers,
-        "client.id": socket.gethostname()
+        "bootstrap.servers": bootstrap_servers
     })
 
     kafka_consumer = Consumer({
         'bootstrap.servers': bootstrap_servers,
-        'group.id': str(uuid.uuid4()),
-        'auto.offset.reset': 'smallest'
+        'group.id': Config.KAFKA_GROUP_ID
     })
 
     # Create gRPC server

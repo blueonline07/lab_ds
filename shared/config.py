@@ -9,7 +9,8 @@ class Config:
     HOST = os.getenv("GRPC_SERVER_HOST", "localhost")
     PORT = int(os.getenv("GRPC_SERVER_PORT", "50051"))
     MONITORING_TOPIC = "metrics"
-    COMMAND = "command"
+    COMMAND_TOPIC = "command"
+    KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "monitoring-app")
     KAFKA_BOOTSTRAP_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
     ETCD_HOST = os.getenv("ETCD_HOST", "localhost")
     ETCD_PORT = int(os.getenv("ETCD_PORT", "2379"))
