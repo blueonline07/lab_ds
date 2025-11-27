@@ -74,7 +74,11 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
             while context.is_active():
                 client_hostname = dict(context.invocation_metadata()).get("hostname")
                 msg = self.consumer.poll(timeout=1.0)
-                if msg is not None and msg.key().decode("utf-8") == client_hostname and not msg.error():
+                if (
+                    msg is not None
+                    and msg.key().decode("utf-8") == client_hostname
+                    and not msg.error()
+                ):
                     cmd = json.loads(msg.value())
                     yield monitoring_pb2.Command(
                         content=cmd["content"], timestamp=cmd["timestamp"]
@@ -120,7 +124,6 @@ def serve(port):
     except KeyboardInterrupt:
         print("\n\nShutting down server...")
         server.stop(0)
-        kafka_producer.close()
 
 
 def get_server_servicer():

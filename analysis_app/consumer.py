@@ -16,11 +16,30 @@ class AnalysisApp:
             {
                 "bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER,
                 "group.id": Config.KAFKA_GROUP_ID,
-                "auto.offset.reset": "smallest",
+                "auto.offset.reset": "earliest",
             }
         )
         self.producer = Producer({"bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER})
         self.consumer.subscribe([Config.MONITORING_TOPIC])
+
+        # Seek to beginning to read all historical messages
+        # Wait for partition assignment
+        assignment = None
+        start_wait = time.time()
+        while assignment is None and (time.time() - start_wait) < 5.0:
+            assignment = self.consumer.assignment()
+            if not assignment:
+                time.sleep(0.1)
+                # Trigger assignment by polling
+                self.consumer.poll(timeout=0.1)
+
+        if assignment:
+            try:
+                # Seek to beginning (offset 0) for all assigned partitions
+                for partition in assignment:
+                    self.consumer.seek(partition, 0)
+            except Exception as e:
+                print(f"Warning: Could not seek to beginning: {e}")
 
     def display_metrics(self, data: dict):
         """Display metrics to stdout"""
@@ -56,7 +75,7 @@ class AnalysisApp:
                     pass
 
             if count == 0:
-                print("⚠ No metrics found")
+                print("No metrics found")
             else:
                 print(f"\n✓ Retrieved {count} metric(s)")
         finally:
@@ -107,11 +126,7 @@ Examples:
         "get-metrics",
         help="Get all metrics from Kafka and display to stdout",
     )
-    get_metrics_parser.add_argument(
-        "--hostname",
-        type=str,
-        required=True
-    )
+    get_metrics_parser.add_argument("--hostname", type=str, required=True)
 
     send_command_parser = subparsers.add_parser(
         "send-command", help="send command to agent"
