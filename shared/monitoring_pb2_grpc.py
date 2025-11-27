@@ -3,7 +3,6 @@
 import grpc
 import warnings
 
-from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 from shared import monitoring_pb2 as shared_dot_monitoring__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
@@ -27,9 +26,7 @@ if _version_not_supported:
 
 
 class MonitoringServiceStub(object):
-    """Service definition for Monitor Agent -> gRPC Server communication
-    Unidirectional streaming: Agent sends periodic monitoring data
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
         """Constructor.
@@ -37,21 +34,18 @@ class MonitoringServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.StreamMetrics = channel.stream_unary(
+        self.StreamMetrics = channel.stream_stream(
                 '/monitoring.MonitoringService/StreamMetrics',
                 request_serializer=shared_dot_monitoring__pb2.MetricsRequest.SerializeToString,
-                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                response_deserializer=shared_dot_monitoring__pb2.Command.FromString,
                 _registered_method=True)
 
 
 class MonitoringServiceServicer(object):
-    """Service definition for Monitor Agent -> gRPC Server communication
-    Unidirectional streaming: Agent sends periodic monitoring data
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def StreamMetrics(self, request_iterator, context):
-        """Client streaming: Agent sends periodic metrics
-        """
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -59,10 +53,10 @@ class MonitoringServiceServicer(object):
 
 def add_MonitoringServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'StreamMetrics': grpc.stream_unary_rpc_method_handler(
+            'StreamMetrics': grpc.stream_stream_rpc_method_handler(
                     servicer.StreamMetrics,
                     request_deserializer=shared_dot_monitoring__pb2.MetricsRequest.FromString,
-                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+                    response_serializer=shared_dot_monitoring__pb2.Command.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -73,9 +67,7 @@ def add_MonitoringServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class MonitoringService(object):
-    """Service definition for Monitor Agent -> gRPC Server communication
-    Unidirectional streaming: Agent sends periodic monitoring data
-    """
+    """Missing associated documentation comment in .proto file."""
 
     @staticmethod
     def StreamMetrics(request_iterator,
@@ -88,12 +80,12 @@ class MonitoringService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.stream_unary(
+        return grpc.experimental.stream_stream(
             request_iterator,
             target,
             '/monitoring.MonitoringService/StreamMetrics',
             shared_dot_monitoring__pb2.MetricsRequest.SerializeToString,
-            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            shared_dot_monitoring__pb2.Command.FromString,
             options,
             channel_credentials,
             insecure,

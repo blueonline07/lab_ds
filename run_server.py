@@ -3,15 +3,15 @@
 Entry point for running the gRPC server
 """
 
-import os
+from shared.config import Config
 
 if __name__ == "__main__":
     from grpc_server.server import serve
 
-    port = os.getenv("GRPC_SERVER_PORT")
-    kafka_bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+    port = Config.PORT
+    kafka_bootstrap_servers = Config.KAFKA_BOOTSTRAP_SERVER
     
     serve(
         port=int(port) if port else None,
-        kafka_bootstrap_servers=kafka_bootstrap_servers,
+        bootstrap_servers=kafka_bootstrap_servers,
     )

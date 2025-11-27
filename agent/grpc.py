@@ -3,6 +3,7 @@ gRPC module - handles communication with the centralized server
 """
 
 import grpc
+import threading
 from typing import Iterator
 from shared import monitoring_pb2
 from shared import monitoring_pb2_grpc
@@ -41,17 +42,20 @@ class GrpcClient:
         self, metrics_generator: Iterator[monitoring_pb2.MetricsRequest]
     ):
         """
-        Stream metrics to server (unidirectional)
+        Stream metrics to server (bidirectional streaming)
 
         Args:
             metrics_generator: Generator that yields MetricsRequest messages
         """
         if not self.connected:
             raise RuntimeError("Not connected to gRPC server. Call connect() first.")
-
         try:
-            # Client streaming: send metrics
-            self.stub.StreamMetrics(metrics_generator)
+            response_stream = self.stub.StreamMetrics(metrics_generator)
+            
+            # Consume responses to keep the stream alive
+            for cmd in response_stream:
+                print(f"Received command: {cmd}")
+                
         except Exception as e:
             print(f"Error in gRPC stream: {e}")
             raise

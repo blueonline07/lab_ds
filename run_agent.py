@@ -2,12 +2,8 @@
 """
 Entry point for running the monitoring agent
 """
-import os
-import dotenv
-dotenv.load_dotenv()
-
-
 import argparse
+from shared.config import Config
 from agent.agent import MonitoringAgent
 
 
@@ -16,8 +12,8 @@ def main():
     parser.add_argument("--agent-id", type=str, default="agent-001", help="Agent ID")
     
     # Get defaults from environment variables
-    grpc_server_host = os.getenv("GRPC_SERVER_HOST", "localhost")
-    grpc_server_port = os.getenv("GRPC_SERVER_PORT", "50051")
+    grpc_server_host = Config.HOST
+    grpc_server_port = Config.PORT
     default_server = f"{grpc_server_host}:{grpc_server_port}"
     
     parser.add_argument(
@@ -26,13 +22,13 @@ def main():
     parser.add_argument(
         "--etcd-host",
         type=str,
-        default=os.getenv("ETCD_HOST", "localhost"),
+        default=Config.ETCD_HOST,
         help="etcd server hostname (default: ETCD_HOST env var or localhost)",
     )
     parser.add_argument(
         "--etcd-port",
         type=int,
-        default=int(os.getenv("ETCD_PORT", "2379")),
+        default=Config.ETCD_PORT,
         help="etcd server port (default: ETCD_PORT env var or 2379)",
     )
     parser.add_argument(

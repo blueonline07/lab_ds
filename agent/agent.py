@@ -159,7 +159,6 @@ class MonitoringAgent:
     def run(self):
         """Run the agent - main execution loop"""
         try:
-            # Stream metrics to server
             self.grpc_client.stream_metrics(metrics_generator=self.metrics_generator())
         except KeyboardInterrupt:
             print("\nShutting down agent...")
