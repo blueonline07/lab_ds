@@ -55,11 +55,13 @@ class DeduplicationPlugin(BasePlugin):
         if self.last_metrics is not None and self._are_metrics_equal(current_metrics, self.last_metrics):
             # Metrics are identical to previous, drop this request
             self.dropped_count += 1
+            print(f"[Dedup] 🚫 DROPPED duplicate metrics (cpu={current_metrics['cpu_percent']:.1f}%, mem={current_metrics['memory_percent']:.1f}%) - Total dropped: {self.dropped_count}")
             return None
         
         # Metrics are different, update last_metrics and allow through
         self.last_metrics = current_metrics
         self.sent_count += 1
+        print(f"[Dedup] ✓ PASSED metrics (cpu={current_metrics['cpu_percent']:.1f}%, mem={current_metrics['memory_percent']:.1f}%) - Total sent: {self.sent_count}")
         return metrics_request
     
     def finalize(self):
