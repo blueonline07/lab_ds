@@ -4,7 +4,6 @@ Monitoring Agent - Modular architecture with collect, grpc, and plugins
 
 import time
 import threading
-import socket
 from typing import Dict, Any, Optional, Iterator
 from shared import monitoring_pb2, Config
 
@@ -37,11 +36,11 @@ class MonitoringAgent:
         """
         self.server_address = server_address
         self.hostname = hostname
-        # Initialize etcd config manager
+
         self.etcd_config = EtcdConfigManager(
-            hostname=socket.gethostname(),
-            etcd_host=Config.ETCD_HOST,
-            etcd_port=Config.ETCD_PORT,
+            hostname=hostname,
+            etcd_host=etcd_host,
+            etcd_port=etcd_port,
             config_key=config_key,
         )
 
@@ -176,4 +175,4 @@ class MonitoringAgent:
         # Close etcd connection
         self.etcd_config.close()
 
-        print(f"✓ Agent {self.hostname} finalized")
+        print(f"Agent {self.hostname} finalized")

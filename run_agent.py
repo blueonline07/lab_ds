@@ -37,12 +37,17 @@ def main():
         default=None,
         help="Custom etcd config key (default: /monitor/config/<hostname>)",
     )
+    parser.add_argument(
+        "--hostname",
+        type=str,
+        default=socket.gethostname()
+    )
 
     args = parser.parse_args()
 
     # Create and run agent with etcd configuration
     agent = MonitoringAgent(
-        hostname=socket.gethostname(),
+        hostname=args.hostname,
         server_address=args.server,
         etcd_host=args.etcd_host,
         etcd_port=args.etcd_port,

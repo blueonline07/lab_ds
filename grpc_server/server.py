@@ -11,7 +11,7 @@ from concurrent import futures
 
 from shared import monitoring_pb2, monitoring_pb2_grpc, Config
 from confluent_kafka import Producer, Consumer
-
+from .kafka import KafkaWrapper
 
 class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
     """gRPC service implementation for receiving monitoring data from agents"""
@@ -86,8 +86,7 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
 _server_servicer = None
 
 def serve(
-    port,
-    bootstrap_servers
+    port
 ):
     """
     Start the gRPC server
@@ -99,14 +98,9 @@ def serve(
 
     global _server_servicer
 
-    kafka_producer = Producer({
-        "bootstrap.servers": bootstrap_servers,
-    })
-
-    kafka_consumer = Consumer({
-        'bootstrap.servers': bootstrap_servers,
-        'group.id': Config.KAFKA_GROUP_ID
-    })
+    wrapper = KafkaWrapper()
+    kafka_producer = wrapper.get_producer()
+    kafka_consumer = wrapper.get_consumer()
 
     # Create gRPC server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -119,8 +113,8 @@ def serve(
     server.add_insecure_port(f"[::]:{port}")
 
     server.start()
-    print(f"✓ gRPC Server running on port {port}")
-    print(f"✓ Kafka: {bootstrap_servers}")
+    print(f"gRPC Server running on port {port}")
+    print(f"Kafka: {Config.KAFKA_BOOTSTRAP_SERVER}")
 
     try:
         server.wait_for_termination()

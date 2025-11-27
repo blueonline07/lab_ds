@@ -16,7 +16,7 @@ class KafkaWrapper:
                         topic=topic, num_partitions=Config.KAFKA_DEFAULT_PARTITION, 
                         replication_factor=Config.KAFKA_DEFAULT_REPLICATION_FACTOR
                     )
-                self.admin.create_topics([new_topic], request_timeout=15)
+                    self.__admin.create_topics([new_topic], request_timeout=15)
                 
         except Exception as e:
             print(f"Could not auto-create topics: {e}")
