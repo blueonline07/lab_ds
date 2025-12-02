@@ -5,6 +5,7 @@ etcd Configuration Manager - handles reading and watching configuration from etc
 import os
 import json
 import threading
+import time
 from typing import Dict, Any, Optional
 import etcd3
 
@@ -136,9 +137,7 @@ class EtcdConfigManager:
                 "net in",
                 "net out",
             ],
-            "plugins": [
-                
-            ],
+            "plugins": [],
             "thresholds": {
                 "cpu_percent": 80.0,
                 "memory_percent": 85.0,
@@ -149,7 +148,7 @@ class EtcdConfigManager:
             },
             "min_cpu": 5.0,
             "min_memory": 5.0,
-            "window_size": 5
+            "window_size": 5,
         }
 
     def _watch_config_callback(self, watch_response):
@@ -193,8 +192,35 @@ class EtcdConfigManager:
             finally:
                 self._watch_id = None
 
+    def save_heartbeat(self) -> bool:
+        """
+        Save heartbeat signal to etcd
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            heartbeat_key = f"/monitor/heartbeat/{self.hostname}"
+            timestamp = str(int(time.time()))
+            self.etcd.put(heartbeat_key, timestamp)
+            print(
+                f"Saved heartbeat to etcd: key: {heartbeat_key} value: {self.etcd.get(heartbeat_key)}"
+            )
+            return True
+        except Exception as e:
+            print(f"Error saving heartbeat to etcd: {e}")
+            return False
+
     def close(self):
         """Close etcd connection and cleanup"""
         self.stop_watching()
         # etcd3 client doesn't have an explicit close method, but we can clear references
+        try:
+            heartbeat_key = f"/monitor/heartbeat/{self.hostname}"
+            self.etcd.put(f"/monitor/heartbeat/{self.hostname}", str(-1))
+            print(
+                f"Saved heartbeat to etcd: key: {heartbeat_key} value: {self.etcd.get(heartbeat_key)}"
+            )
+        except Exception as e:
+            print(f"Error saving heartbeat to etcd: {e}")
         self.etcd = None

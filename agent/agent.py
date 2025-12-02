@@ -141,6 +141,10 @@ class MonitoringAgent:
         while self.running:
             # Collect metrics
             metrics = self.collector.collect_metrics()
+            
+            # Save heartbeat to etcd after collecting metrics
+            self.etcd_config.save_heartbeat()
+            
             metrics_request = self.collector.create_metrics_request(metrics)
 
             # Process through plugins

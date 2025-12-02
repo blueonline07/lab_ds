@@ -73,7 +73,7 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
         try:
             while context.is_active():
                 client_hostname = dict(context.invocation_metadata()).get("hostname")
-                msg = self.consumer.poll(timeout=1.0)
+                msg = self.consumer.poll(timeout=5)
                 if (
                     msg is not None
                     and msg.key().decode("utf-8") == client_hostname
