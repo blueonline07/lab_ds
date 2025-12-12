@@ -1,6 +1,9 @@
 syntax = "proto3";
 
 package monitoring;
+
+import "google/protobuf/struct.proto";
+
 service Monitoring {
 
    rpc StreamMetrics(stream MetricsRequest) returns (stream Command);
@@ -25,12 +28,12 @@ message MetricsRequest {
 }
 
 enum CommandType {
-    CONFIG = 0;
-    CONTROL = 1;
+    ACK = 0;
+    CONFIG = 1;
+    CONTROL = 2;
 }
 
 message Command {
-    string agent = 1;
-    // CommandType type = 2;
-    // map<string, string> params = 3;
+    CommandType type = 1;
+    google.protobuf.Struct params = 2;
 }

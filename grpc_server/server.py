@@ -10,13 +10,14 @@ import json
 from concurrent import futures
 from config import Config
 from protobuf import monitoring_pb2, monitoring_pb2_grpc
-from confluent_kafka import Producer, Consumer
+from confluent_kafka import Producer
+from google.protobuf.struct_pb2 import Struct
 
 
 class MonitoringServicer(monitoring_pb2_grpc.MonitoringServicer):
     """gRPC service implementation for receiving monitoring data from agents"""
 
-    def __init__(self, kafka_producer: Producer, kafka_consumer: Consumer):
+    def __init__(self):
         """
         Initialize the monitoring service
 
@@ -24,10 +25,11 @@ class MonitoringServicer(monitoring_pb2_grpc.MonitoringServicer):
             kafka_producer: Kafka producer service for forwarding data
             kafka_bootstrap_servers: Kafka bootstrap servers
         """
-        self.producer = kafka_producer
-        self.consumer = kafka_consumer
-        self.consumer.subscribe([Config.COMMAND_TOPIC])
-        self.agents = {}
+        self.producer = Producer(
+            {
+                "bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER,
+            }
+        )
         self.lock = threading.Lock()
 
     def StreamMetrics(self, request_iterator, context):
@@ -60,7 +62,11 @@ class MonitoringServicer(monitoring_pb2_grpc.MonitoringServicer):
                     ).encode("utf-8"),
                 )
                 self.producer.flush()
-                yield monitoring_pb2.Command(agent="haha")
+                params = Struct()
+                params.update({})
+                yield monitoring_pb2.Command(
+                    type=monitoring_pb2.CommandType.ACK, params=params
+                )
 
         except Exception as e:
             print(f"Error processing requests: {e}")
@@ -74,22 +80,10 @@ def serve(port):
         port: Port to listen on (defaults to GRPC_SERVER_PORT env var or 50051)
         kafka_bootstrap_servers: Kafka bootstrap servers (defaults to KAFKA_BOOTSTRAP_SERVERS env var or localhost:9092)
     """
-    producer = Producer(
-        {
-            "bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER,
-        }
-    )
-    consumer = Consumer(
-        {
-            "bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER,
-            "group.id": Config.COMMAND_GROUP_ID,
-            "auto.offset.reset": "earliest",
-        }
-    )
 
     # Create gRPC server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    _server_servicer = MonitoringServicer(producer, consumer)
+    _server_servicer = MonitoringServicer()
     monitoring_pb2_grpc.add_MonitoringServicer_to_server(_server_servicer, server)
     server.add_insecure_port(f"[::]:{port}")
 
