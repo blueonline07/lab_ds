@@ -12,6 +12,7 @@ from google.protobuf.json_format import MessageToDict
 from agent.collect import MetricCollector
 from agent.plugin_manager import PluginManager
 from agent.etcd_config import EtcdConfigManager
+from agent.executor import Executor
 
 
 class MonitoringAgent:
@@ -48,7 +49,7 @@ class MonitoringAgent:
         self._interval_lock = threading.Lock()
         self._interval = initial_config.get("interval", 5)
         self.active_metrics = initial_config.get("metrics", [])
-
+        self.executor = Executor(server_address)
         self.collector = MetricCollector(hostname, self.active_metrics)
         self.channel = None
         self.stub = None
@@ -144,9 +145,10 @@ class MonitoringAgent:
         try:
             response_stream = self.stub.StreamMetrics(self.metrics_generator())
             for cmd in response_stream:
-                print(MessageToDict(cmd))
-                # if cmd.type == monitoring_pb2.CommandType.CONFIG:
-                #     self.etcd_config.store_config(MessageToDict(cmd.params))
+                if cmd.type == monitoring_pb2.CommandType.CONFIG:
+                    self.etcd_config.store_config(MessageToDict(cmd.params))
+                elif cmd.type == monitoring_pb2.CommandType.CONTROL:
+                    self.executor.exec(MessageToDict(cmd.params))
         except KeyboardInterrupt:
             print("\nShutting down agent...")
         finally:

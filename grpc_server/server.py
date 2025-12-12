@@ -62,14 +62,24 @@ class MonitoringServicer(monitoring_pb2_grpc.MonitoringServicer):
                     ).encode("utf-8"),
                 )
                 self.producer.flush()
+
+                cmd_type = monitoring_pb2.CommandType.ACK
                 params = Struct()
-                params.update({})
-                yield monitoring_pb2.Command(
-                    type=monitoring_pb2.CommandType.ACK, params=params
-                )
+                cpu_percent = request.metrics.cpu_percent
+                if cpu_percent < 0.4:
+                    cmd_type = monitoring_pb2.CommandType.CONFIG
+                    params.update({"interval": 2})
+                elif cpu_percent > 0.7 and cpu_percent < 0.9:
+                    cmd_type = monitoring_pb2.CommandType.CONFIG
+                    params.update({"interval": 10})
+                elif cpu_percent >= 0.9:
+                    cmd_type = monitoring_pb2.CommandType.CONTROL
+                    params.update({"action": "restart", "author": Config.HOST})
+
+                yield monitoring_pb2.Command(type=cmd_type, params=params)
 
         except Exception as e:
-            print(f"Error processing requests: {e}")
+            pass
 
 
 def serve(port):
