@@ -7,6 +7,7 @@ import threading
 import time
 from typing import Dict, Any, Optional
 import etcd3
+from agent.utils import deep_merge
 
 
 class EtcdConfigManager:
@@ -61,7 +62,7 @@ class EtcdConfigManager:
             new_config: New configuration dictionary
         """
         with self._config_lock:
-            self._config = self._config | new_config.copy()
+            self._config = deep_merge(self._config, new_config)
 
     def store_config(self, config: Dict[str, Any]) -> bool:
         """
@@ -74,6 +75,7 @@ class EtcdConfigManager:
             True if successful, False otherwise
         """
         try:
+            config = deep_merge(self._config, config)
             self.etcd.put(self.config_key, json.dumps(config, indent=2))
             self._update_config(config)
             print(f"Stored config to etcd: {self.config_key}")
