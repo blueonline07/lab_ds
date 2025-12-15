@@ -142,6 +142,7 @@ class MetricCollector:
 
         self._last_measurement_time = current_time
         meta = {}
+        print(self.flag)
         if self.flag:
             procs = []
 

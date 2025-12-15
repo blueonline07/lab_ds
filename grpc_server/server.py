@@ -67,13 +67,13 @@ class MonitoringServicer(monitoring_pb2_grpc.MonitoringServicer):
                 cmd_type = monitoring_pb2.CommandType.ACK
                 params = Struct()
                 cpu_percent = request.metrics.cpu_percent
-                if cpu_percent < 0.4:
+                if cpu_percent <= 40.0:
                     cmd_type = monitoring_pb2.CommandType.CONFIG
                     params.update({"interval": 2})
-                elif cpu_percent > 0.7 and cpu_percent < 0.8:
+                elif cpu_percent > 70.0 and cpu_percent < 80.0:
                     cmd_type = monitoring_pb2.CommandType.CONFIG
                     params.update({"interval": 10})
-                elif cpu_percent >= 0.8:
+                elif cpu_percent >= 80.0:
                     cmd_type = monitoring_pb2.CommandType.DIAGNOSTIC
                     params.update({"key": "cpu_percent"})
 
